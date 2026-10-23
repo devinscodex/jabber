@@ -242,6 +242,8 @@ def capability_block(app, ns, conv, model_name):
         lines.append("(6) To identify something unknown, build specific search queries from what you see (visible text, "
                      "distinctive features, the file name), and if the first search fails, try a different query. "
                      "Open the best result with fetch_page and cite the URL you relied on.")
+    lines.append("(7) Write answers in Simplified Technical English: short sentences, active voice, simple present tense, "
+                 "one meaning per term, no idioms or filler. Keep every command, path, number and name exact.")
     return "\n".join(lines)
 
 
