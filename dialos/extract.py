@@ -9,6 +9,7 @@ the rest, detected at runtime:
 extract() returns (text, notes). Notes say plainly what could not be read.
 """
 import io
+import os
 import posixpath
 import re
 import shutil
@@ -29,6 +30,10 @@ OCR_PAGE_TIMEOUT = 60
 LO_TIMEOUT = 180
 MIN_PAGE_CHARS = 10
 MIN_ALNUM_RATIO = 0.3
+INDRA_BATCH = 20        # pages per indra-ocr process
+INDRA_CORES = 4         # CPU cores indra may use, so uploads do not starve the chat backend
+LOOP_MIN_WORDS = 60     # a page needs this many words before repetition is judged
+LOOP_UNIQUE_MIN = 0.12  # unique-word share below this means a looping recognizer
 
 TEXT_EXTS = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".xml", ".html", ".htm", ".yaml", ".yml",
              ".toml", ".ini", ".cfg", ".conf", ".log", ".py", ".js", ".ts", ".tsx", ".jsx", ".c", ".h", ".cpp", ".hpp",
@@ -43,9 +48,15 @@ _ocr_sem = threading.Semaphore(2)
 _lo_sem = threading.Semaphore(1)
 
 
+def _indra_bin():
+    """Path of the optional indra-ocr tool (DIALOS_INDRA_BIN overrides PATH), or None."""
+    return os.environ.get("DIALOS_INDRA_BIN") or shutil.which("indra-ocr")
+
+
 def capabilities() -> dict:
     return {"pdf": bool(shutil.which("pdftotext")),
-            "ocr": bool(shutil.which("tesseract") and shutil.which("pdftoppm")),
+            "ocr": bool((shutil.which("tesseract") or _indra_bin()) and shutil.which("pdftoppm")),
+            "indra": bool(_indra_bin()),
             "legacy_office": bool(shutil.which("soffice") or shutil.which("libreoffice"))}
 
 
@@ -290,35 +301,86 @@ def extract_pdf(raw: bytes):
         thin = [i for i, p in enumerate(pages) if _page_thin(p)]
         ocr_done = 0
         if thin and can_ocr:
-            for i in thin[:OCR_MAX_PAGES]:
-                text = _ocr_page(src, i + 1, td)
-                if text and not _page_thin(text):
+            todo = thin[:OCR_MAX_PAGES]
+            texts, engines = _ocr_pages(src, [i + 1 for i in todo], td)
+            for i in todo:
+                text = texts.get(i + 1, "")
+                if text and not _page_thin(text) and not _looping(text):
                     pages[i] = text
                     ocr_done += 1
             if len(thin) > OCR_MAX_PAGES:
                 notes.append(f"{len(thin) - OCR_MAX_PAGES} more scanned pages were not OCR'd (limit {OCR_MAX_PAGES})")
+            if len(todo) > ocr_done:
+                notes.append(f"{len(todo) - ocr_done} scanned page(s) could not be read reliably")
+            if ocr_done:
+                used = " and ".join(sorted(set(engines.values()) - {""})) or "OCR"
+                notes.append(f"{ocr_done} scanned page(s) were read with OCR ({used}) and may contain errors")
         elif thin:
-            notes.append(f"{len(thin)} page(s) look scanned or image-only; install tesseract to read them")
-        if ocr_done:
-            notes.append(f"{ocr_done} scanned page(s) were read with OCR and may contain errors")
+            notes.append(f"{len(thin)} page(s) look scanned or image-only; install tesseract or indra-ocr to read them")
     return "\n".join(f"--- page {i} ---\n{p.strip()}\n" for i, p in enumerate(pages, 1)), notes
 
 
-def _ocr_page(pdf: Path, page: int, td: str) -> str:
+def _looping(text: str) -> bool:
+    """OCR output that is mostly one repeated word is a recognizer failure, not content."""
+    w = text.split()
+    return len(w) > LOOP_MIN_WORDS and len(set(w)) / len(w) < LOOP_UNIQUE_MIN
+
+
+def _rasterize(pdf: Path, page: int, td: str):
     prefix = str(Path(td) / f"p{page}")
+    r = _run(["pdftoppm", "-f", str(page), "-l", str(page), "-r", "200", "-png", str(pdf), prefix], OCR_PAGE_TIMEOUT)
+    imgs = sorted(Path(td).glob(f"p{page}*.png"))
+    return imgs[0] if r.returncode == 0 and imgs else None
+
+
+def _tesseract(img: Path) -> str:
+    t = _run(["tesseract", str(img), "stdout"], OCR_PAGE_TIMEOUT)
+    return t.stdout.decode("utf-8", "replace") if t.returncode == 0 else ""
+
+
+def _indra(imgs):
+    """{image path: text} for a batch of page images; one process per batch (the model loads once)."""
+    out, res = tempfile.mkdtemp(), {}
+    try:
+        for k in range(0, len(imgs), INDRA_BATCH):
+            chunk = imgs[k:k + INDRA_BATCH]
+            _run([_indra_bin(), *map(str, chunk), "--out", out, "--cores", str(INDRA_CORES)],
+                 min(OCR_PAGE_TIMEOUT * len(chunk), 30 + 5 * len(chunk)))
+            for p in chunk:
+                f = Path(out) / (p.stem + ".md")
+                res[p] = f.read_text("utf-8", "replace") if f.exists() else ""
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
+    return res
+
+
+def _ocr_pages(pdf: Path, pages, td: str):
+    """({page: text}, {page: engine}). Indra first when installed, tesseract for pages it fails on."""
+    texts, engines = {}, {}
     with _ocr_sem:
         try:
-            r = _run(["pdftoppm", "-f", str(page), "-l", str(page), "-r", "200", "-png", str(pdf), prefix], OCR_PAGE_TIMEOUT)
-            imgs = sorted(Path(td).glob(f"p{page}*.png"))
-            if r.returncode != 0 or not imgs:
-                return ""
-            t = _run(["tesseract", str(imgs[0]), "stdout"], OCR_PAGE_TIMEOUT)
-            return t.stdout.decode("utf-8", "replace") if t.returncode == 0 else ""
+            imgs = {p: _rasterize(pdf, p, td) for p in pages}
+            have = {p: i for p, i in imgs.items() if i}
+            if _indra_bin():
+                got = _indra(list(have.values()))
+                for p, img in have.items():
+                    t = got.get(img, "")
+                    if t and not _page_thin(t) and not _looping(t):
+                        texts[p], engines[p] = t, "indra"
+            if shutil.which("tesseract"):
+                for p, img in have.items():
+                    if p not in texts:
+                        t = _tesseract(img)
+                        if t and not _page_thin(t) and not _looping(t):
+                            texts[p], engines[p] = t, "tesseract"
         except subprocess.TimeoutExpired:
-            return ""
+            pass
         finally:
-            for f in Path(td).glob(f"p{page}*.png"):
+            for f in Path(td).glob("p*.png"):
                 f.unlink(missing_ok=True)
+    return texts, engines
 
 
 # ---------------------------------------------------------------- legacy via LibreOffice

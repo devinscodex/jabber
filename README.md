@@ -58,7 +58,11 @@ total quota (`user_quota_bytes`, default 20 GB).
 
 - Text and code are stored as they are. Word, Excel, PowerPoint and EPUB are read with
   the standard library only. PDFs need `pdftotext` (poppler-utils); scanned
-  pages are read with OCR if `tesseract` is installed; old .doc/.xls/.ppt need
+  pages are read with OCR if `indra-ocr` (`pip install indra-ocr`, CPU only) or
+  `tesseract` is installed: indra first, tesseract for pages indra fails or loops on.
+  indra's code is Apache-2.0 but its model weights have their own licence
+  (modified OpenRAIL-M); read it before commercial use. Set `DIALOS_INDRA_BIN` if
+  `indra-ocr` is not on the server's PATH. Old .doc/.xls/.ppt need
   LibreOffice. Anything that can't be read is refused with the reason.
 - The model reads project files with read-only tools (list, read in pages,
   search, look at an image), scoped to that project. Turn off with `tools = false`.
