@@ -34,7 +34,7 @@ Status key: [x] done, [ ] planned. Order within a section is rough priority.
 
 ## Operations
 - [x] Context window fitting with a visible meter; full history stays on disk
-- [x] Operator event log (timings, tokens, outcomes, sign-ins; no message text) and `dialos.stats`
+- [x] Operator event log (timings, tokens, outcomes, sign-ins; no message text) and `jabber.stats`
 - [ ] Optional summary of dropped history; search tool over saved conversations
 - [ ] Per-chat thinking toggle; request queue with "N ahead" and a cap
 

@@ -1,6 +1,6 @@
 'use strict';
 
-let APP_NAME = 'Dialos';
+let APP_NAME = 'Jabber';
 (function () {
   const rawFetch = window.fetch.bind(window);
   let loginShown = false;
@@ -51,8 +51,8 @@ let APP_NAME = 'Dialos';
       APP_NAME = me.instance_name || APP_NAME;
       document.title = APP_NAME;
       document.getElementById('brandName').textContent = APP_NAME;
-      window.DIALOS_ME = me;
-      window.DIALOS_FEATURES = me.features || {};
+      window.JABBER_ME = me;
+      window.JABBER_FEATURES = me.features || {};
       initWebSetting();
       if (!(me.features && me.features.files)) document.body.classList.add('no-files');
       if (!me.authenticated) { showLogin(); return; }
@@ -189,7 +189,7 @@ async function readAndUploadFiles(projId, fileList, onProgress) {
   const SKIP_DIRS = ['node_modules/', '.git/', '__pycache__/', '.venv/', 'dist/', 'build/'];
   const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
   const extOf = (n) => { const i = n.lastIndexOf('.'); return i === -1 ? '' : n.slice(i).toLowerCase(); };
-  const maxBytes = (window.DIALOS_FEATURES && window.DIALOS_FEATURES.max_upload_bytes) || 2 * 1024 ** 3;
+  const maxBytes = (window.JABBER_FEATURES && window.JABBER_FEATURES.max_upload_bytes) || 2 * 1024 ** 3;
   const written = [], problems = [];
   const list = Array.from(fileList).filter((f) => {
     const p = f.webkitRelativePath || f.name;
@@ -232,7 +232,7 @@ async function readAndUploadFiles(projId, fileList, onProgress) {
       } catch (e) { problems.push(`${path}: connection lost`); failed = true; break; }
       if (!resp.ok) {
         const d = await resp.json().catch(() => ({}));
-        problems.push(d.error || (resp.status === 413 ? `${path}: the web server in front of Dialos rejected a ${Math.round(piece.size / 1024)} KB piece (its body limit is too low)` : `${path}: upload failed (HTTP ${resp.status})`));
+        problems.push(d.error || (resp.status === 413 ? `${path}: the web server in front of Jabber rejected a ${Math.round(piece.size / 1024)} KB piece (its body limit is too low)` : `${path}: upload failed (HTTP ${resp.status})`));
         failed = true;
         break;
       }
@@ -700,7 +700,7 @@ function pendingDotsHtml() {
 
 function buildThinkingBlock(thinking, label) {
   const wrap = document.createElement('div');
-  const autoExpand = localStorage.getItem('dialos-autoexpand-thinking') === '1';
+  const autoExpand = localStorage.getItem('jabber-autoexpand-thinking') === '1';
   wrap.className = 'thinking-block' + (autoExpand ? ' open' : '');
   const labelText = label || 'Thinking';
   wrap.innerHTML = `<button class="thinking-toggle" data-act="19"><span class="chev">▸</span> <span class="thinking-label">${labelText}</span></button><div class="thinking-body"></div>`;
@@ -982,14 +982,14 @@ if (inputBox) {
   });
 }
 
-function webAvailable() { return !!(window.DIALOS_FEATURES && window.DIALOS_FEATURES.web); }
-function webOn() { return webAvailable() && localStorage.getItem('dialos-web') === '1'; }
+function webAvailable() { return !!(window.JABBER_FEATURES && window.JABBER_FEATURES.web); }
+function webOn() { return webAvailable() && localStorage.getItem('jabber-web') === '1'; }
 function initWebSetting() {
   const row = document.getElementById('webSettingRow'), box = document.getElementById('webSearchSetting');
   if (!row || !box) return;
   row.style.display = webAvailable() ? '' : 'none';
   box.checked = webOn();
-  box.onchange = () => localStorage.setItem('dialos-web', box.checked ? '1' : '0');
+  box.onchange = () => localStorage.setItem('jabber-web', box.checked ? '1' : '0');
 }
 
 function updateCtxMeter(c) {
@@ -1331,7 +1331,7 @@ async function exportAllConversations() {
   const blob = new Blob([JSON.stringify(full, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `dialos-conversations-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `jabber-conversations-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -1397,7 +1397,7 @@ function setTheme(id) {
   });
   const desc = document.getElementById('themeDesc');
   if (desc) desc.textContent = THEME_NAMES[id] || id;
-  localStorage.setItem('dialos-theme', id);
+  localStorage.setItem('jabber-theme', id);
   const btn = document.getElementById('themeToggleBtn');
   if (btn) btn.textContent = id === 'moss-light' ? '☼' : '☾';
 }
@@ -1408,14 +1408,14 @@ function toggleThemeQuick() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const savedTheme = localStorage.getItem('dialos-theme');
+  const savedTheme = localStorage.getItem('jabber-theme');
   setTheme(THEME_NAMES[savedTheme] ? savedTheme : 'moss-dark');
   loadModelList();
   loadProjects();
   loadCurrentUser();
   refreshConvList();
   ['sidebar'].forEach(panel => {
-    const saved = localStorage.getItem(`dialos-${panel}-collapsed`);
+    const saved = localStorage.getItem(`jabber-${panel}-collapsed`);
     const defaultCollapsed = panel === 'dash';
     const shouldCollapse = isMobileView() ? true : (saved !== null ? saved === '1' : defaultCollapsed);
     if (shouldCollapse) {
@@ -1423,15 +1423,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   ['projects', 'history'].forEach(name => {
-    if (localStorage.getItem(`dialos-section-${name}-collapsed`) === '1') {
+    if (localStorage.getItem(`jabber-section-${name}-collapsed`) === '1') {
       toggleSidebarSection(name);
     }
   });
   const autoExpandBox = document.getElementById('autoExpandThinking');
   if (autoExpandBox) {
-    autoExpandBox.checked = localStorage.getItem('dialos-autoexpand-thinking') === '1';
+    autoExpandBox.checked = localStorage.getItem('jabber-autoexpand-thinking') === '1';
     autoExpandBox.addEventListener('change', () => {
-      localStorage.setItem('dialos-autoexpand-thinking', autoExpandBox.checked ? '1' : '0');
+      localStorage.setItem('jabber-autoexpand-thinking', autoExpandBox.checked ? '1' : '0');
     });
   }
 });
@@ -1441,13 +1441,13 @@ function toggleSidebarSection(name) {
   const body = name === 'projects' ? projListEl : convListEl;
   const collapsed = header.classList.toggle('collapsed');
   body.classList.toggle('collapsed', collapsed);
-  localStorage.setItem(`dialos-section-${name}-collapsed`, collapsed ? '1' : '0');
+  localStorage.setItem(`jabber-section-${name}-collapsed`, collapsed ? '1' : '0');
 }
 
 function isMobileView() { return window.matchMedia('(max-width: 760px)').matches; }
 function togglePanel(panel) {
   const collapsed = document.body.classList.toggle(`${panel}-collapsed`);
-  if (!isMobileView()) localStorage.setItem(`dialos-${panel}-collapsed`, collapsed ? '1' : '0');
+  if (!isMobileView()) localStorage.setItem(`jabber-${panel}-collapsed`, collapsed ? '1' : '0');
 }
 document.addEventListener('click', (e) => {
   if (!isMobileView() || document.body.classList.contains('sidebar-collapsed')) return;

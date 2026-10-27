@@ -6,7 +6,7 @@ import tempfile
 import time
 import unittest
 
-from dialos import auth_local, context, stats, telemetry
+from jabber import auth_local, context, stats, telemetry
 from tests.test_api import events
 from tests.test_server import Client, FakeBackend, multi_cfg, start, stop
 
@@ -140,7 +140,7 @@ class ChatLoggingTests(unittest.TestCase):
         for i in range(3):
             self.chat("q%d" % i)
         out = io.StringIO()
-        names = {k: v for k, v in [(__import__("dialos.store", fromlist=["x"]).ns_for(i), u) for i, u in self.app.local.id_map().items()]}
+        names = {k: v for k, v in [(__import__("jabber.store", fromlist=["x"]).ns_for(i), u) for i, u in self.app.local.id_map().items()]}
         stats.summarize(list(self.app.telemetry.read()), names, out=lambda s="": out.write(s + "\n"))
         text = out.getvalue()
         for needle in ("Chat requests: 3", "alice", "m1", "Latency", "Context:", "Sign-ins"):

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from dialos import extract
+from jabber import extract
 
 BLANK_PDF = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R 4 0 R]/Count 2>>endobj\n"
              b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n4 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
@@ -32,7 +32,7 @@ class IndraOcr(unittest.TestCase):
 
     def run_pdf(self, body, tesseract=None):
         exe = fake_indra(self.td, body)
-        patches = [mock.patch.dict(os.environ, {"DIALOS_INDRA_BIN": exe})]
+        patches = [mock.patch.dict(os.environ, {"JABBER_INDRA_BIN": exe})]
         if tesseract is not None:
             patches.append(mock.patch.object(extract, "_tesseract", lambda img: tesseract))
         else:
@@ -43,9 +43,9 @@ class IndraOcr(unittest.TestCase):
 
     def test_capabilities_reports_indra(self):
         exe = fake_indra(self.td, "")
-        with mock.patch.dict(os.environ, {"DIALOS_INDRA_BIN": exe}):
+        with mock.patch.dict(os.environ, {"JABBER_INDRA_BIN": exe}):
             self.assertTrue(extract.capabilities()["indra"])
-        with mock.patch.dict(os.environ, {"DIALOS_INDRA_BIN": ""}), mock.patch("shutil.which", return_value=None):
+        with mock.patch.dict(os.environ, {"JABBER_INDRA_BIN": ""}), mock.patch("shutil.which", return_value=None):
             self.assertFalse(extract.capabilities()["indra"])
             self.assertFalse(extract.capabilities()["ocr"])
 
@@ -76,7 +76,7 @@ class IndraOcr(unittest.TestCase):
         body = f'echo "{WORDS}" > "$out/$b.md"\n'
         exe = fake_indra(self.td, body)
         Path(exe).write_text(Path(exe).read_text().replace("mkdir -p", f"echo x >> {count}\nmkdir -p", 1))
-        with mock.patch.dict(os.environ, {"DIALOS_INDRA_BIN": exe}):
+        with mock.patch.dict(os.environ, {"JABBER_INDRA_BIN": exe}):
             extract.extract("scan.pdf", BLANK_PDF)
         self.assertEqual(len(count.read_text().split()), 1)
 

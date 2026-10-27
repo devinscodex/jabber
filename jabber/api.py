@@ -226,7 +226,7 @@ def capability_block(app, ns, conv, model_name):
                   "crop_image", "image_metadata"]
     if conv.get("web") and app.cfg.web:
         tools += ["web_search", "fetch_page"]
-    lines = [f"About this deployment: you are the model \"{model_name}\", running locally through Dialos"
+    lines = [f"About this deployment: you are the model \"{model_name}\", running locally through Jabber"
              + (f" on {app.cfg.host_note}" if app.cfg.host_note else "")
              + ". You are not running in a vendor cloud, and you should not describe infrastructure you cannot know.",
              "Tools available in this conversation: " + (", ".join(tools) if tools else "none") + ".",

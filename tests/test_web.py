@@ -1,8 +1,8 @@
 import unittest
 from unittest import mock
 
-from dialos import auth_local, web
-from dialos.backends import Chunk
+from jabber import auth_local, web
+from jabber.backends import Chunk
 from tests.test_api import events
 from tests.test_server import Client, FakeBackend, multi_cfg, start, stop
 

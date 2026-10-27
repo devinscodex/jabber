@@ -1,4 +1,4 @@
-# Dialos
+# Jabber
 
 An open web chat framework for local AI models. Self-hosted, privacy-first,
 and usable from any machine that runs a model server.
@@ -20,12 +20,12 @@ the web server and model backends are being ported in.
 
 ## Managing local accounts
 
-    python -m dialos.cli list
-    python -m dialos.cli add alice --admin
-    python -m dialos.cli passwd alice
-    python -m dialos.cli role bob admin
-    python -m dialos.cli disable bob
-    python -m dialos.cli delete bob
+    python -m jabber.cli list
+    python -m jabber.cli add alice --admin
+    python -m jabber.cli passwd alice
+    python -m jabber.cli role bob admin
+    python -m jabber.cli disable bob
+    python -m jabber.cli delete bob
 
 ## Context and logging
 
@@ -34,19 +34,19 @@ only the system text plus as many recent messages as fit in about 75% of
 `context_tokens`; the page shows a context meter and says when earlier
 messages are saved but outside the model's memory.
 
-Dialos writes one JSON line per chat request and sign-in event to
+Jabber writes one JSON line per chat request and sign-in event to
 `<data_dir>/logs/events.jsonl` (owner-only, rotated at 20 MB). It records
 timings, token counts, model names and outcomes, never message text.
 
-    python -m dialos.stats --days 7
-    python -m dialos.stats --days 1 --raw 20
+    python -m jabber.stats --days 7
+    python -m jabber.stats --days 1 --raw 20
 
 ## People
 
 The first account created in the browser is the admin. Admins get a People section
 in Settings: let someone in (you get a one-time temporary password to pass on),
 reset a password, disable, promote or remove. People with a temporary password must
-choose their own before doing anything else. The `dialos.cli` command does the same
+choose their own before doing anything else. The `jabber.cli` command does the same
 from a terminal.
 
 ## Files
@@ -61,7 +61,7 @@ total quota (`user_quota_bytes`, default 20 GB).
   pages are read with OCR if `indra-ocr` (`pip install indra-ocr`, CPU only) or
   `tesseract` is installed: indra first, tesseract for pages indra fails or loops on.
   indra's code is Apache-2.0 but its model weights have their own licence
-  (modified OpenRAIL-M); read it before commercial use. Set `DIALOS_INDRA_BIN` if
+  (modified OpenRAIL-M); read it before commercial use. Set `JABBER_INDRA_BIN` if
   `indra-ocr` is not on the server's PATH. Old .doc/.xls/.ppt need
   LibreOffice. Anything that can't be read is refused with the reason.
 - The model reads project files with read-only tools (list, read in pages,

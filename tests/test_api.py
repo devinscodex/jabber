@@ -3,7 +3,7 @@ import os
 import stat
 import unittest
 
-from dialos import auth_local, store
+from jabber import auth_local, store
 from tests.test_server import Client, FakeBackend, multi_cfg, start, stop
 
 

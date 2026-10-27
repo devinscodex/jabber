@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from dialos import config
+from jabber import config
 
 
 def write(text):

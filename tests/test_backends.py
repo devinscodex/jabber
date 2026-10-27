@@ -3,8 +3,8 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from dialos import backends
-from dialos.backends import BackendError, Chunk
+from jabber import backends
+from jabber.backends import BackendError, Chunk
 
 
 def serve(handler):

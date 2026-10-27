@@ -63,7 +63,7 @@
     }
   }
   function init() {
-    const me = window.DIALOS_ME;
+    const me = window.JABBER_ME;
     if (!me || !me.authenticated) return;
     if (me.must_change) {
       $('pwOverlay').hidden = false;
@@ -93,7 +93,7 @@
       });
     }
   }
-  // app.js sets DIALOS_ME asynchronously after /api/me; wait for it.
+  // app.js sets JABBER_ME asynchronously after /api/me; wait for it.
   let tries = 0;
-  const t = setInterval(() => { if (window.DIALOS_ME || ++tries > 50) { clearInterval(t); init(); } }, 100);
+  const t = setInterval(() => { if (window.JABBER_ME || ++tries > 50) { clearInterval(t); init(); } }, 100);
 })();

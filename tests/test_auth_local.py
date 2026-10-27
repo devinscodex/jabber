@@ -3,8 +3,8 @@ import stat
 import tempfile
 import unittest
 
-from dialos import auth_local
-from dialos.auth_local import AuthError, LocalAuth
+from jabber import auth_local
+from jabber.auth_local import AuthError, LocalAuth
 
 
 class LocalAuthTests(unittest.TestCase):

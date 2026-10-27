@@ -49,8 +49,8 @@ _lo_sem = threading.Semaphore(1)
 
 
 def _indra_bin():
-    """Path of the optional indra-ocr tool (DIALOS_INDRA_BIN overrides PATH), or None."""
-    return os.environ.get("DIALOS_INDRA_BIN") or shutil.which("indra-ocr")
+    """Path of the optional indra-ocr tool (JABBER_INDRA_BIN overrides PATH), or None."""
+    return os.environ.get("JABBER_INDRA_BIN") or shutil.which("indra-ocr")
 
 
 def capabilities() -> dict:

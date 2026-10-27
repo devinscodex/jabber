@@ -1,9 +1,9 @@
-# Copy to dialos.toml and edit.
+# Copy to jabber.toml and edit.
 mode = "solo"                 # "solo" or "multi"
-instance_name = "Dialos"
+instance_name = "Jabber"
 bind = "127.0.0.1"
 port = 8420
-data_dir = "~/.local/share/dialos"
+data_dir = "~/.local/share/jabber"
 # system_prompt = ""
 # model_allowlist = []        # empty = every model the backend reports
 # default_model = ""
@@ -28,7 +28,7 @@ data_dir = "~/.local/share/dialos"
 provider = "none"             # none | local | oidc | proxy
 # oidc_issuer = "https://login.example.com"
 # oidc_client_id = ""
-# oidc_client_secret_env = "DIALOS_OIDC_SECRET"
+# oidc_client_secret_env = "JABBER_OIDC_SECRET"
 # proxy_header = "X-Forwarded-Email"
 # proxy_trusted_ips = ["127.0.0.1"]
 # allow_signup = false

@@ -1,6 +1,6 @@
 """Model backends: Ollama native API and OpenAI-compatible servers.
 
-Both yield the same Chunk stream, so the rest of Dialos never sees the wire
+Both yield the same Chunk stream, so the rest of Jabber never sees the wire
 format. Internal message format follows Ollama:
   {"role": "user"|"assistant"|"system"|"tool", "content": str,
    "images": [base64, ...] (optional), "tool_calls": [{"name", "args"}] (assistant),

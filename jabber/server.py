@@ -1,4 +1,4 @@
-"""Dialos HTTP server: static UI, sessions, models, streaming chat.
+"""Jabber HTTP server: static UI, sessions, models, streaming chat.
 
 Security model:
   * Sessions are an HttpOnly, SameSite=Lax cookie holding a random token.
@@ -27,7 +27,7 @@ from .auth_local import AuthError, Identity, LocalAuth
 STATIC = Path(__file__).parent / "static"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
          ".css": "text/css; charset=utf-8"}
-COOKIE = "dialos_session"
+COOKIE = "jabber_session"
 MAX_BODY = 8 * 1024 * 1024
 MAX_CONTENT = 200_000
 MAX_IMAGES = 8
@@ -64,7 +64,7 @@ class App:
 
 class Handler(BaseHTTPRequestHandler):
     app: App = None
-    server_version = "Dialos"
+    server_version = "Jabber"
     sys_version = ""
 
     def log_message(self, fmt, *args):
@@ -388,8 +388,8 @@ def make_server(cfg, backend=None):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="dialos")
-    ap.add_argument("--config", default=os.environ.get("DIALOS_CONFIG"))
+    ap = argparse.ArgumentParser(prog="jabber")
+    ap.add_argument("--config", default=os.environ.get("JABBER_CONFIG"))
     args = ap.parse_args(argv)
     try:
         cfg = cfgmod.load(args.config)
@@ -403,7 +403,7 @@ def main(argv=None):
         print("warning: multi-user on a network address without secure_cookies; "
               "serve it over https and set secure_cookies = true", file=sys.stderr)
     if app.needs_setup():
-        print("no accounts yet: open the page to create the first admin, or run: python -m dialos.cli add NAME --admin")
+        print("no accounts yet: open the page to create the first admin, or run: python -m jabber.cli add NAME --admin")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

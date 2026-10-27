@@ -5,8 +5,8 @@ import threading
 import unittest
 import zipfile
 
-from dialos import auth_local, extract, files
-from dialos.backends import Chunk
+from jabber import auth_local, extract, files
+from jabber.backends import Chunk
 from tests.test_api import events
 from tests.test_server import Client, FakeBackend, multi_cfg, start, stop
 
@@ -253,12 +253,12 @@ class FileApiTests(unittest.TestCase):
         self.assertEqual(self.c.json("GET", f"/api/projects/{self.pid}/files")[1]["entries"], [])
         self.upload("b.txt", b"hello")
         self.c.json("DELETE", f"/api/projects/{self.pid}")
-        self.assertEqual(self.app.files.usage(__import__("dialos.store", fromlist=["x"]).ns_for(self.app.local.id_map().popitem()[0])), 0)
+        self.assertEqual(self.app.files.usage(__import__("jabber.store", fromlist=["x"]).ns_for(self.app.local.id_map().popitem()[0])), 0)
 
     def test_search_endpoint_logic(self):
         self.upload("a.txt", b"alpha\nThe Budget is 5\nomega")
         self.upload("sub/b.txt", b"nothing\nbudget again")
-        from dialos import store
+        from jabber import store
         ns = store.ns_for([i for i, u in self.app.local.id_map().items() if u == "alice"][0])
         hits = self.app.files.search(ns, self.pid, "BUDGET")["matches"]
         self.assertEqual(sorted((h["path"], h["line"]) for h in hits), [("a.txt", 2), ("sub/b.txt", 2)])

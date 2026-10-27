@@ -3,8 +3,8 @@ import io
 import json
 import unittest
 
-from dialos import auth_local, tools
-from dialos.backends import Chunk
+from jabber import auth_local, tools
+from jabber.backends import Chunk
 from tests.exif_fixture import jpeg_with_exif
 from tests.test_api import events
 from tests.test_files import PNG

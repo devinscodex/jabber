@@ -1,6 +1,6 @@
-"""dialos-stats: summarize the operator event log.
+"""jabber-stats: summarize the operator event log.
 
-    python -m dialos.stats [--config FILE] [--data-dir DIR] [--days 7] [--raw N]
+    python -m jabber.stats [--config FILE] [--data-dir DIR] [--days 7] [--raw N]
 
 Reads <data_dir>/logs/events.jsonl. Shows usage, latency, model load stalls,
 context pressure, errors and sign-in activity. Never shows message text,
@@ -105,7 +105,7 @@ def summarize(events, names=None, out=print):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="dialos-stats")
+    ap = argparse.ArgumentParser(prog="jabber-stats")
     ap.add_argument("--config")
     ap.add_argument("--data-dir")
     ap.add_argument("--days", type=float, default=7)
@@ -124,7 +124,7 @@ def main(argv=None):
     db = cfg.data_path() / "auth.db"
     if db.exists():
         names = {store.ns_for(i): u for i, u in LocalAuth(str(cfg.data_path())).id_map().items()}
-    print(f"Dialos stats, last {args.days:g} day(s), {cfg.log_path()}\n")
+    print(f"Jabber stats, last {args.days:g} day(s), {cfg.log_path()}\n")
     summarize(events, names)
     if args.raw:
         print("\nLast events:")

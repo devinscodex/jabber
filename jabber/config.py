@@ -1,4 +1,4 @@
-"""Dialos configuration: one TOML file, validated at startup.
+"""Jabber configuration: one TOML file, validated at startup.
 
 mode = "solo"   one person, loopback by default, no login.
 mode = "multi"  several people; refuses to start without a real auth provider.
@@ -28,7 +28,7 @@ class Auth:
     provider: str = "none"
     oidc_issuer: str = ""
     oidc_client_id: str = ""
-    oidc_client_secret_env: str = "DIALOS_OIDC_SECRET"
+    oidc_client_secret_env: str = "JABBER_OIDC_SECRET"
     proxy_header: str = "X-Forwarded-Email"
     proxy_trusted_ips: list = field(default_factory=lambda: ["127.0.0.1"])
     allow_signup: bool = False
@@ -44,10 +44,10 @@ class Backend:
 @dataclass
 class Config:
     mode: str = "solo"
-    instance_name: str = "Dialos"
+    instance_name: str = "Jabber"
     bind: str = "127.0.0.1"
     port: int = 8420
-    data_dir: str = "~/.local/share/dialos"
+    data_dir: str = "~/.local/share/jabber"
     system_prompt: str = ""
     model_allowlist: list = field(default_factory=list)
     default_model: str = ""

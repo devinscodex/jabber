@@ -1,6 +1,6 @@
 import unittest
 
-from dialos import auth_local
+from jabber import auth_local
 from tests.test_server import Client, FakeBackend, multi_cfg, start, stop
 
 PW = "correct horse battery"

@@ -1,12 +1,12 @@
-"""dialos-admin: manage local accounts from the command line.
+"""jabber-admin: manage local accounts from the command line.
 
-    python -m dialos.cli [--data-dir DIR] list
-    python -m dialos.cli add USER [--name N] [--email E] [--admin]
-    python -m dialos.cli passwd USER
-    python -m dialos.cli role USER admin|user
-    python -m dialos.cli disable USER | enable USER | delete USER
+    python -m jabber.cli [--data-dir DIR] list
+    python -m jabber.cli add USER [--name N] [--email E] [--admin]
+    python -m jabber.cli passwd USER
+    python -m jabber.cli role USER admin|user
+    python -m jabber.cli disable USER | enable USER | delete USER
 
-Passwords are read from a prompt (or DIALOS_PASSWORD for scripted use),
+Passwords are read from a prompt (or JABBER_PASSWORD for scripted use),
 never from argv.
 """
 import argparse
@@ -19,7 +19,7 @@ from .auth_local import AuthError, LocalAuth
 
 
 def _password(confirm=True):
-    pw = os.environ.get("DIALOS_PASSWORD")
+    pw = os.environ.get("JABBER_PASSWORD")
     if pw:
         return pw
     pw = getpass.getpass("Password: ")
@@ -29,7 +29,7 @@ def _password(confirm=True):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="dialos-admin")
+    ap = argparse.ArgumentParser(prog="jabber-admin")
     ap.add_argument("--config")
     ap.add_argument("--data-dir")
     sub = ap.add_subparsers(dest="cmd", required=True)

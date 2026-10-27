@@ -4,8 +4,8 @@ import tempfile
 import threading
 import unittest
 
-from dialos import auth_local, config, server
-from dialos.backends import BackendError, Chunk
+from jabber import auth_local, config, server
+from jabber.backends import BackendError, Chunk
 
 
 class FakeBackend:
@@ -205,7 +205,7 @@ class ServerTests(unittest.TestCase):
         c = Client(srv.server_port)
         s, r, t = c.req("GET", "/")
         self.assertEqual(s, 200)
-        self.assertIn("Dialos", t)
+        self.assertIn("Jabber", t)
         self.assertIn("default-src 'self'", r.getheader("Content-Security-Policy"))
         self.assertEqual(r.getheader("X-Content-Type-Options"), "nosniff")
         csp = r.getheader("Content-Security-Policy")
