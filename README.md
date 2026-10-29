@@ -18,15 +18,6 @@ the web server and model backends are being ported in.
   LM Studio).
 - **No build step.** Python standard library plus optional dependencies.
 
-## Managing local accounts
-
-    python -m jabber.cli list
-    python -m jabber.cli add alice --admin
-    python -m jabber.cli passwd alice
-    python -m jabber.cli role bob admin
-    python -m jabber.cli disable bob
-    python -m jabber.cli delete bob
-
 ## Context and logging
 
 The full conversation is always kept on disk. Each request sends the model
@@ -46,8 +37,7 @@ timings, token counts, model names and outcomes, never message text.
 The first account created in the browser is the admin. Admins get a People section
 in Settings: let someone in (you get a one-time temporary password to pass on),
 reset a password, disable, promote or remove. People with a temporary password must
-choose their own before doing anything else. The `jabber.cli` command does the same
-from a terminal.
+choose their own before doing anything else.
 
 ## Files
 
@@ -71,6 +61,12 @@ total quota (`user_quota_bytes`, default 20 GB).
 ## Tests
 
     python -m unittest discover -s tests -t .
+
+## Security
+
+This project is early and open to review. If you find a security issue,
+please open an issue rather than a public PR with exploit details, so it
+can be looked at before details are public.
 
 ## License
 
