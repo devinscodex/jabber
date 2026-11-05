@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jabber Admin</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    background: #14161a; color: #e4e6ea; margin: 0; padding: 2rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 0.25rem; }
+  h2 { font-size: 0.95rem; font-weight: 600; margin: 2rem 0 0.75rem; color: #c3c7cf; }
+  .sub { color: #9aa0ab; font-size: 0.85rem; margin-bottom: 1.5rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #2a2d33; }
+  th { color: #9aa0ab; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.04em; }
+  tr:hover td { background: #1b1e24; }
+  td.ns { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  td.num, th.num { text-align: center; }
+  input[type=checkbox] { width: 1.1rem; height: 1.1rem; cursor: pointer; accent-color: #4a8fe0; }
+  input[type=checkbox]:disabled { cursor: wait; opacity: 0.5; }
+  .err-col { color: #e07a5f; font-weight: 600; }
+  .muted { color: #6b7280; }
+  .toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem; background: #2a2d33;
+    border: 1px solid #3a3d44; border-radius: 6px; padding: 0.6rem 1rem;
+    font-size: 0.85rem; display: none;
+  }
+  .toast.show { display: block; }
+  .toast.error { border-color: #e07a5f; color: #e07a5f; }
+  #status { color: #6b7280; font-size: 0.8rem; margin-bottom: 0.75rem; }
+  #refresh-btn {
+    background: #2a2d33; color: #e4e6ea; border: 1px solid #3a3d44; border-radius: 6px;
+    padding: 0.4rem 0.9rem; font-size: 0.8rem; cursor: pointer; margin-bottom: 1rem;
+  }
+  #refresh-btn:hover { background: #343841; }
+  #refresh-btn:disabled { cursor: wait; opacity: 0.6; }
+
+  .cards { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .card {
+    background: #1b1e24; border: 1px solid #2a2d33; border-radius: 8px;
+    padding: 0.9rem 1.1rem; min-width: 190px; flex: 1;
+  }
+  .card .label { color: #9aa0ab; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+  .card .value { font-size: 1.15rem; font-weight: 600; }
+  .card .detail { color: #9aa0ab; font-size: 0.78rem; margin-top: 0.25rem; }
+  .dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.4rem; }
+  .dot.ok { background: #5fb76b; }
+  .dot.warn { background: #e0b84a; }
+  .dot.bad { background: #e07a5f; }
+  .dot.off { background: #4a4d55; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: #c3c7cf; }
+  .sort-arrow { color: #4a8fe0; margin-left: 0.25rem; }
+  .health-note { color: #6b7280; font-size: 0.8rem; margin-bottom: 1rem; }
+  .flag-row td { font-size: 0.8rem; }
+  .flag-kind { text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.03em; color: #e0b84a; }
+  th.group-head { text-align: center; background: #1b1e24; color: #9aa0ab; font-size: 0.68rem; border-bottom: 1px solid #343841; }
+  select.group-apply {
+    background: #1b1e24; color: #e4e6ea; border: 1px solid #3a3d44; border-radius: 6px;
+    padding: 0.25rem 0.4rem; font-size: 0.78rem; cursor: pointer; max-width: 170px;
+  }
+  select.group-apply:disabled { cursor: wait; opacity: 0.5; }
+</style>
+</head>
+<body>
+<h1>Jabber / Leviathan -- User &amp; MCP Admin</h1>
+<div class="sub">
+  Read-only user/conversation overview. MCP connection checkboxes write live to the real
+  allowlist files on toggle -- changes take effect on each user's NEXT chat turn, no restart needed.
+  Health cards below refresh from a cron snapshot taken every 30 minutes, not live.
+</div>
+<div id="status">loading...</div>
+<button id="refresh-btn" type="button">Refresh</button>
+
+<h2>Health</h2>
+<div id="health-note" class="health-note"></div>
+<div id="health-cards" class="cards"></div>
+<table id="flag-table" style="margin-top:1rem; display:none;">
+  <thead><tr><th>User</th><th>Conversation</th><th>Kind</th><th>Detail</th></tr></thead>
+  <tbody id="flag-rows"></tbody>
+</table>
+
+
+<h2>Users &amp; Skills</h2>
+<div class="health-note">Skills are grouped (Sage/ERP, Wrike/PM, File Access, Document Generation).
+  Use a row's "Apply skill group" picker to grant or revoke every skill in a group for that
+  user in one action, or toggle individual skill checkboxes below.</div>
+<table id="grid">
+  <thead>
+    <tr id="group-head-row"></tr>
+    <tr id="head-row"></tr>
+  </thead>
+  <tbody id="body-rows"></tbody>
+</table>
+
+<h2>Tools Available To The Model</h2>
+<div id="tools-note" class="health-note"></div>
+<table id="tools-table">
+  <thead><tr><th>Tool</th><th>Gated By</th><th>Description</th></tr></thead>
+  <tbody id="tools-rows"></tbody>
+</table>
+<div class="toast" id="toast"></div>
+
+<script>
+async function loadOverview() {
+  const statusEl = document.getElementById("status");
+  try {
+    const res = await fetch("/api/admin/overview", { credentials: "same-origin" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      statusEl.textContent = "Error " + res.status + ": " + (body.error || res.statusText);
+      statusEl.style.color = "#e07a5f";
+      return;
+    }
+    const data = await res.json();
+    render(data);
+    statusEl.textContent = "users=" + data.users.length + "  loaded " + new Date().toLocaleTimeString();
+  } catch (e) {
+    statusEl.textContent = "fetch failed: " + e;
+    statusEl.style.color = "#e07a5f";
+  }
+}
+
+async function loadHealth() {
+  const note = document.getElementById("health-note");
+  const cards = document.getElementById("health-cards");
+  cards.innerHTML = "";
+  try {
+    const res = await fetch("/api/admin/health", { credentials: "same-origin" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.ok) {
+      note.textContent = body.error || "health snapshot unavailable";
+      renderFlags([]);
+      return;
+    }
+    renderHealth(body.snapshot);
+  } catch (e) {
+    note.textContent = "fetch failed: " + e;
+  }
+}
+
+async function loadTools() {
+  const note = document.getElementById("tools-note");
+  const rows = document.getElementById("tools-rows");
+  rows.innerHTML = "";
+  try {
+    const res = await fetch("/api/admin/tools", { credentials: "same-origin" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      note.textContent = body.error || "failed to load tool catalog";
+      return;
+    }
+    note.textContent = body.tools.length + " tools total (static catalog -- a given user's real set " +
+      "depends on which gates in the table above they're on).";
+    body.tools.forEach(t => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="ns">' + escapeHtml(t.name) + '</td>' +
+        '<td>' + escapeHtml(t.gate) + '</td>' +
+        '<td class="muted">' + escapeHtml(t.description) + '</td>';
+      rows.appendChild(tr);
+    });
+  } catch (e) {
+    note.textContent = "fetch failed: " + e;
+  }
+}
+
+function dot(state) {
+  return '<span class="dot ' + state + '"></span>';
+}
+
+function renderHealth(snap) {
+  const note = document.getElementById("health-note");
+  note.textContent = "Snapshot generated " + (snap.generated_at || "unknown");
+  const cards = document.getElementById("health-cards");
+  cards.innerHTML = "";
+
+  // Service card
+  const svc = snap.service || {};
+  const svcOk = svc.active_state === "active";
+  const uptimeStr = svc.uptime_s != null ? Math.round(svc.uptime_s / 60) + " min" : "unknown";
+  cards.appendChild(card("Service", dot(svcOk ? "ok" : "bad") + (svc.active_state || "unknown"),
+    "uptime: " + uptimeStr + "  pid: " + (svc.main_pid || "?")));
+
+  // GPU card
+  const gpu = snap.gpu || {};
+  if (gpu.error) {
+    cards.appendChild(card("GPU", dot("bad") + "error", gpu.error));
+  } else {
+    const vramPct = gpu.memory_total_mib ? Math.round(100 * gpu.memory_used_mib / gpu.memory_total_mib) : 0;
+    cards.appendChild(card("GPU", dot("ok") + gpu.utilization_pct + "% util",
+      gpu.power_draw_w + "W / " + gpu.power_limit_w + "W  --  VRAM " + vramPct + "%"));
+  }
+
+  // Ollama / model card
+  const oll = snap.ollama || {};
+  if (oll.error) {
+    cards.appendChild(card("Model", dot("bad") + "error", oll.error));
+  } else if (!oll.loaded) {
+    cards.appendChild(card("Model", dot("warn") + "not loaded", ""));
+  } else {
+    const fallback = oll.cpu_fallback;
+    cards.appendChild(card("Model", dot(fallback ? "bad" : "ok") + (oll.name || "?"),
+      fallback ? "WARNING: running on CPU, not GPU" : "on GPU"));
+  }
+
+  // Conversation health card
+  const ch = snap.conversation_health || {};
+  if (ch.error) {
+    cards.appendChild(card("Conversation Health", dot("bad") + "error", ch.error));
+  } else {
+    const counts = ch.counts || {};
+    const totalFlags = Object.values(counts).reduce((a, b) => a + b, 0);
+    cards.appendChild(card("Conversation Health (" + (ch.window_hours || 24) + "h)",
+      dot(totalFlags === 0 ? "ok" : "warn") + totalFlags + " flagged",
+      "broken=" + (counts.broken_replies||0) + "  error=" + (counts.error_shaped_replies||0) +
+      "  repetition=" + (counts.degenerate_repetition||0) + "  word_salad=" + (counts.word_salad_no_breaks||0) +
+      "  thinking=" + (counts.thinking_degenerate||0) + "  frustration=" + (counts.frustration||0)));
+  }
+
+  renderFlags(ch.flagged || []);
+}
+
+function card(label, valueHtml, detail) {
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = '<div class="label">' + label + '</div><div class="value">' + valueHtml + '</div>' +
+    (detail ? '<div class="detail">' + detail + '</div>' : "");
+  return div;
+}
+
+function renderFlags(flagged) {
+  const table = document.getElementById("flag-table");
+  const rows = document.getElementById("flag-rows");
+  rows.innerHTML = "";
+  if (!flagged.length) {
+    table.style.display = "none";
+    return;
+  }
+  table.style.display = "";
+  flagged.forEach(f => {
+    const tr = document.createElement("tr");
+    tr.className = "flag-row";
+    tr.innerHTML =
+      '<td class="ns">' + escapeHtml(f.user) + '</td>' +
+      '<td>' + escapeHtml(f.title || "") + '</td>' +
+      '<td class="flag-kind">' + escapeHtml(f.kind) + '</td>' +
+      '<td class="muted">' + escapeHtml(f.detail || "") + '</td>';
+    rows.appendChild(tr);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isError ? " error" : "");
+  setTimeout(() => { t.className = "toast"; }, 3500);
+}
+
+async function setConnection(ns, connection, enabled) {
+  try {
+    const res = await fetch("/api/admin/mcp-toggle", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ns, connection, enabled }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast((body.error || "toggle failed") + " (" + ns + " / " + connection + ")", true);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    showToast("network error: " + e, true);
+    return false;
+  }
+}
+
+async function toggle(ns, connection, enabled, checkboxEl) {
+  checkboxEl.disabled = true;
+  const ok = await setConnection(ns, connection, enabled);
+  if (!ok) checkboxEl.checked = !enabled;
+  else showToast((enabled ? "Enabled " : "Disabled ") + connection + " for " + ns, false);
+  checkboxEl.disabled = false;
+}
+
+// Bulk "apply skill group" (2026-10-29, Devin: "apply skill groups to
+// users") -- loops the SAME /api/admin/mcp-toggle call toggle() already
+// uses, once per connection in the group, then syncs each visible
+// checkbox in this row to match. No new backend endpoint: a group is a
+// pure admin-UI convenience over the existing per-connection toggle.
+async function applyGroup(ns, groupId, enabled, rowEl, selectEl) {
+  const group = CURRENT_GROUPS.find(g => g.id === groupId);
+  if (!group) return;
+  selectEl.disabled = true;
+  let okCount = 0;
+  for (const cid of group.connections) {
+    const ok = await setConnection(ns, cid, enabled);
+    if (ok) {
+      okCount++;
+      const cb = rowEl.querySelector('input[data-cid="' + cid + '"]');
+      if (cb) cb.checked = enabled;
+    }
+  }
+  const verb = enabled ? "Enabled" : "Disabled";
+  showToast(verb + " " + okCount + "/" + group.connections.length + ' skill(s) in "' + group.label + '" for ' + ns,
+            okCount < group.connections.length);
+  selectEl.value = "";
+  selectEl.disabled = false;
+}
+
+let CURRENT_GROUPS = [];
+let CURRENT_DATA = null;
+// Default: Person ascending -- matches the old unsortable behavior
+// (backend already returns users sorted by namespace) so first load
+// looks identical; sorting only changes things once a header is clicked.
+let sortState = { key: "ns", dir: 1 };
+
+// "Connected" is a recency light, NOT a live-session indicator -- Jabber
+// has no per-user WebSocket/session registry on this box, only real
+// last-conversation-file-mtime data (see admin-ui-redesign-workflow.md).
+// Keep the UI copy honest about what this actually measures.
+const CONNECTED_THRESHOLD_MIN = 15;
+function isConnected(u) {
+  return u.last_activity_ts != null &&
+    (Date.now() / 1000 - u.last_activity_ts) <= CONNECTED_THRESHOLD_MIN * 60;
+}
+
+const SORT_DEFAULT_DIR = { ns: 1, connected: -1, last_activity_ts: -1 };
+
+function setSort(key) {
+  if (sortState.key === key) {
+    sortState.dir *= -1;
+  } else {
+    sortState = { key, dir: SORT_DEFAULT_DIR[key] ?? 1 };
+  }
+  if (CURRENT_DATA) render(CURRENT_DATA);
+}
+
+function sortedUsers(users) {
+  const { key, dir } = sortState;
+  const arr = users.slice();
+  arr.sort((a, b) => {
+    let av, bv;
+    if (key === "ns") {
+      av = a.ns; bv = b.ns;
+      return dir * av.localeCompare(bv);
+    } else if (key === "connected") {
+      av = isConnected(a) ? 1 : 0;
+      bv = isConnected(b) ? 1 : 0;
+      if (av !== bv) return dir * (av - bv);
+      // Tie-break within the same connected bucket: most recent first,
+      // independent of the bucket's own sort direction.
+      av = a.last_activity_ts ?? -Infinity;
+      bv = b.last_activity_ts ?? -Infinity;
+      return bv - av;
+    } else if (key === "last_activity_ts") {
+      av = a.last_activity_ts ?? -Infinity;
+      bv = b.last_activity_ts ?? -Infinity;
+      return dir * (av - bv);
+    }
+    return 0;
+  });
+  return arr;
+}
+
+function sortArrow(key) {
+  if (sortState.key !== key) return "";
+  return '<span class="sort-arrow">' + (sortState.dir === 1 ? "\u25b2" : "\u25bc") + "</span>";
+}
+
+function render(data) {
+  CURRENT_DATA = data;
+  CURRENT_GROUPS = data.groups || [];
+  const groupHeadRow = document.getElementById("group-head-row");
+  const headRow = document.getElementById("head-row");
+  const bodyRows = document.getElementById("body-rows");
+  groupHeadRow.innerHTML = "";
+  headRow.innerHTML = "";
+  bodyRows.innerHTML = "";
+
+  // key=null means not sortable (Conversations stays a plain count --
+  // only Person/Connected/Last Active were asked to be sortable).
+  const fixedHeaders = [
+    { key: "ns", label: "Person" },
+    { key: "connected", label: "Connected" },
+    { key: null, label: "Conversations" },
+    { key: "last_activity_ts", label: "Last Active" },
+  ];
+  const fixedTh = document.createElement("th");
+  fixedTh.colSpan = fixedHeaders.length;
+  groupHeadRow.appendChild(fixedTh);
+  fixedHeaders.forEach((h, i) => {
+    const th = document.createElement("th");
+    th.innerHTML = escapeHtml(h.label) + (h.key ? sortArrow(h.key) : "");
+    if (i > 0) th.className = "num";
+    if (h.key) {
+      th.classList.add("sortable");
+      th.title = h.key === "connected"
+        ? "Active within the last " + CONNECTED_THRESHOLD_MIN + " minutes (based on last message time) -- not a live session check. Click to sort."
+        : "Click to sort";
+      th.addEventListener("click", () => setSort(h.key));
+    }
+    headRow.appendChild(th);
+  });
+
+  // Group-aware header: walk data.connections in order, and for each one
+  // that starts a new group (per CURRENT_GROUPS membership), emit one
+  // colspan'd group-header cell covering every member that appears
+  // contiguously from here. Connections not in any group (future additions
+  // ahead of their own group being defined) just get a blank group cell.
+  const groupOfConn = {};
+  CURRENT_GROUPS.forEach(g => g.connections.forEach(cid => { groupOfConn[cid] = g; }));
+  let i = 0;
+  while (i < data.connections.length) {
+    const c = data.connections[i];
+    const g = groupOfConn[c.id];
+    const th = document.createElement("th");
+    th.className = "group-head";
+    if (g) {
+      th.colSpan = g.connections.length;
+      th.textContent = g.label;
+      i += g.connections.length;
+    } else {
+      th.colSpan = 1;
+      th.textContent = "";
+      i += 1;
+    }
+    groupHeadRow.appendChild(th);
+  }
+  const bulkGroupTh = document.createElement("th");
+  bulkGroupTh.className = "group-head";
+  bulkGroupTh.textContent = "";
+  groupHeadRow.appendChild(bulkGroupTh);
+
+  data.connections.forEach(c => {
+    const th = document.createElement("th");
+    th.className = "num" + (c.ok ? "" : " err-col");
+    th.textContent = c.label + (c.ok ? "" : " (file error)");
+    headRow.appendChild(th);
+  });
+  const bulkTh = document.createElement("th");
+  bulkTh.className = "num";
+  bulkTh.textContent = "Apply Group";
+  headRow.appendChild(bulkTh);
+
+  sortedUsers(data.users).forEach(u => {
+    const tr = document.createElement("tr");
+
+    const nsTd = document.createElement("td");
+    nsTd.className = "ns";
+    nsTd.textContent = u.ns;
+    tr.appendChild(nsTd);
+
+    const connTd = document.createElement("td");
+    connTd.className = "num";
+    const online = isConnected(u);
+    connTd.innerHTML = '<span class="dot ' + (online ? "ok" : "off") + '"></span>' + (online ? "active" : "away");
+    connTd.title = u.last_activity_ts == null
+      ? "no activity on record"
+      : "active within the last " + CONNECTED_THRESHOLD_MIN + " minutes (based on last message time)";
+    tr.appendChild(connTd);
+
+    const convTd = document.createElement("td");
+    convTd.className = "num";
+    convTd.textContent = u.conversations;
+    tr.appendChild(convTd);
+
+    const lastTd = document.createElement("td");
+    lastTd.className = "num" + (u.last_activity ? "" : " muted");
+    lastTd.textContent = u.last_activity || "never";
+    tr.appendChild(lastTd);
+
+    data.connections.forEach(c => {
+      const td = document.createElement("td");
+      td.className = "num";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.dataset.cid = c.id;
+      cb.checked = !!u.connections[c.id];
+      cb.addEventListener("change", () => toggle(u.ns, c.id, cb.checked, cb));
+      td.appendChild(cb);
+      tr.appendChild(td);
+    });
+
+    const bulkTd = document.createElement("td");
+    bulkTd.className = "num";
+    const sel = document.createElement("select");
+    sel.className = "group-apply";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Apply skill group...";
+    sel.appendChild(placeholder);
+    CURRENT_GROUPS.forEach(g => {
+      const onOpt = document.createElement("option");
+      onOpt.value = "enable:" + g.id;
+      onOpt.textContent = "Enable: " + g.label;
+      sel.appendChild(onOpt);
+      const offOpt = document.createElement("option");
+      offOpt.value = "disable:" + g.id;
+      offOpt.textContent = "Disable: " + g.label;
+      sel.appendChild(offOpt);
+    });
+    sel.addEventListener("change", () => {
+      if (!sel.value) return;
+      const [action, groupId] = sel.value.split(":");
+      applyGroup(u.ns, groupId, action === "enable", tr, sel);
+    });
+    bulkTd.appendChild(sel);
+    tr.appendChild(bulkTd);
+
+    bodyRows.appendChild(tr);
+  });
+}
+
+async function loadAll() {
+  await Promise.all([loadOverview(), loadHealth(), loadTools()]);
+}
+
+loadAll();
+document.getElementById("refresh-btn").addEventListener("click", async (ev) => {
+  ev.target.disabled = true;
+  await loadAll();
+  ev.target.disabled = false;
+});
+</script>
+</body>
+</html>

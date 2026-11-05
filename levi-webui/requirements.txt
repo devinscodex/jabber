@@ -1,0 +1,18 @@
+# Cairn WebUI's first real Python dependencies (2026-08-19). Everything
+# else in this project is deliberately stdlib-only; these two exist
+# because Cloudflare Access identity verification (cf_access_auth.py) is
+# the org's actual multi-user auth boundary, and hand-rolling RSA-JWT
+# signature verification for that is the wrong economy -- see
+# cf_access_auth.py's own module docstring for the full reasoning.
+#
+# Both already present on every real deployment target checked
+# (Ouroboros system python3, 2026-08-19) -- no install was actually
+# needed there, this file exists to make the dependency explicit and
+# pinnable, not because it was missing.
+PyJWT==2.7.0
+cryptography==41.0.7
+
+# pymssql added 2026-10-20 (Sage-MCP wiring) -- tools.py imports
+# ~/sage-mcp/sage_mcp_server.py directly, which connects to DB02
+# (Sage 100 Premium 2025 / DocLink) read-only via MAS_Reports.
+pymssql==2.4.5

@@ -1,0 +1,9 @@
+# Real Cloudflare Access values go here (Devin fills in once the Access
+# application + Entra IdP are registered). Copy this file to
+# cf-access-config (no extension) in the same directory on Leviathan --
+# the file is intentionally absent until then. levi-webui.service's
+# EnvironmentFile= line has no leading "-", so systemd hard-refuses to
+# start the service without it, on purpose (fail-closed, never serves
+# unauthenticated off localhost by accident).
+CF_ACCESS_TEAM_DOMAIN=
+CF_ACCESS_AUD=

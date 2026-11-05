@@ -1,0 +1,32 @@
+[
+  {
+    "date": "2026-11-02",
+    "title": "See the model's reasoning",
+    "body": "For users who have it turned on, you can now expand and read the model's step-by-step reasoning behind a reply, not just the final answer."
+  },
+  {
+    "date": "2026-10-22",
+    "title": "Fixed replies drifting into gibberish",
+    "body": "Fixed a rare bug where a long reply could drift away from real words into a chain of loosely related synonyms instead of actual sentences. Long replies read coherently all the way through now."
+  },
+  {
+    "date": "2026-10-21",
+    "title": "Fixed replies that could run away and freeze chat",
+    "body": "Found and fixed a bug where a single reply could occasionally spiral into an endless repetitive loop, tying up the server until someone restarted it by hand. Replies are now automatically capped so this can't happen again."
+  },
+  {
+    "date": "2026-10-21",
+    "title": "Download Wrike attachments from chat",
+    "body": "Attachments Jabber finds on a Wrike task can now be downloaded straight from the conversation."
+  },
+  {
+    "date": "2026-10-20",
+    "title": "Live Sage (ERP) lookups",
+    "body": "For users with it turned on, Jabber can now look up real data in Sage and bring it into its answer instead of only working from what you typed."
+  },
+  {
+    "date": "2026-10-08",
+    "title": "Images in chat",
+    "body": "You can now paste or attach images directly into a conversation."
+  }
+]
