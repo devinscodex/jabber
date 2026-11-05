@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-from . import backends, context, store, tools as tools_mod, web as web_mod
+from . import backends, context, store, tools as tools_mod, usage as usage_mod, web as web_mod
 
 MAX_MESSAGE = 200_000
 MAX_IMAGES = 4
@@ -221,10 +221,10 @@ def _projects(h, method, proj_id, action):
 def capability_block(app, ns, conv, model_name):
     tools = []
     pid = conv.get("project_id")
-    if app.cfg.tools and pid and app.files.has_files(ns, pid):
+    if app.cfg.tools and pid and app.files.has_files(ns, pid) and app.groups.allowed(ns, "files"):
         tools += ["list_project_files", "read_project_file", "search_project_files", "read_project_image",
                   "crop_image", "image_metadata"]
-    if conv.get("web") and app.cfg.web:
+    if conv.get("web") and app.cfg.web and app.groups.allowed(ns, "web"):
         tools += ["web_search", "fetch_page"]
     lines = [f"About this deployment: you are the model \"{model_name}\", running locally through Jabber"
              + (f" on {app.cfg.host_note}" if app.cfg.host_note else "")
@@ -259,13 +259,13 @@ def system_messages(app, st, ns, conv):
         if instr:
             system = (system + "\n\n" if system else "") + "Project instructions:\n" + instr
     pid = conv.get("project_id")
-    if pid and app.cfg.tools and app.files.has_files(ns, pid):
+    if pid and app.cfg.tools and app.files.has_files(ns, pid) and app.groups.allowed(ns, "files"):
         top = ", ".join(app.files.top_listing(ns, pid)) or "(empty)"
         system = (system + "\n\n" if system else "") + (
             "This conversation's project has uploaded files. Top level: " + top + ". Use the tools list_project_files, "
             "read_project_file and search_project_files to read them instead of guessing. Documents (PDF, Word, Excel, "
             "PowerPoint) are stored as '<name>.extracted.txt'. Cite the file name when you use its content.")
-    if conv.get("web") and app.cfg.web:
+    if conv.get("web") and app.cfg.web and app.groups.allowed(ns, "web"):
         system = (system + "\n\n" if system else "") + web_mod.WEB_NOTE
     return [{"role": "system", "content": system}] if system else []
 
@@ -318,12 +318,116 @@ def model_options(app):
 
 MAX_TOOL_ROUNDS = 6
 
+# Runaway-generation guards (2026-11-04, ported from Leviathan's levi-webui
+# after 3 rounds of real-incident fixes there -- see that project's
+# decision-ledger. Ported here now so this codebase doesn't regress on
+# crash-safety when it eventually replaces levi-webui as the real deploy
+# (Devin's explicit ask, "mainly for the new auth method"). Same proven
+# constants/logic, not re-derived: a synonym-chain degenerate-generation
+# failure mode keeps recurring on local reasoning models and needs this
+# exact two-layer defense (pattern detection, not just a length cap) to
+# actually catch it.
+CONTENT_CHAR_CAP = 12000  # hard backstop: a reply longer than this is a runaway, not an answer
+NOPUNCT_RUN_MAX = 800     # chars with no sentence/row break at all = word salad. Real data (levi-webui,
+                          # 268 saved replies): longest legit run < 500; the 4 known runaways ran 1046-4791.
+THINK_NOPUNCT_RUN_MAX = 2400  # wider than content's -- legit reasoning runs longer unbroken than prose.
+                               # Starting assumption (3x), not measured against this model/config's own
+                               # thinking traces -- replay real history before trusting a tighter number.
+_BREAK_CHARS = ".!?\n:;|\u3002\uff01\uff1f"
+
+
+def _last_break(text: str) -> int:
+    return max(text.rfind(c) for c in _BREAK_CHARS)
+
+
+def _runaway_cut(text: str, nopunct_limit: int = NOPUNCT_RUN_MAX):
+    """Index to cut `text` at when it has run nopunct_limit+ chars without a single sentence or row
+    break (. ! ? newline : ; | and CJK stops), else None. Tables, lists and code break constantly."""
+    limit = nopunct_limit * (4 if text.count("```") % 2 == 1 else 1)
+    last = _last_break(text)
+    return last + 1 if len(text) - last - 1 > limit else None
+
+
+def _trim_runaway(text: str) -> str:
+    """Drop the garbage tail: back to the last real sentence/row break (empty if there never was one)."""
+    text = text[:CONTENT_CHAR_CAP]
+    cut = _runaway_cut(text)
+    if cut is None:
+        cut = _last_break(text) + 1
+    return text[:cut].rstrip()
+
+
+def _looks_repeating(text: str) -> bool:
+    """True when the last 200 characters already appear 3+ times in the recent text."""
+    if len(text) < 1200:
+        return False
+    return text[-4000:].count(text[-200:]) >= 3
+
+
+def _thinking_degenerate(text: str) -> bool:
+    """Live guard for the model's internal reasoning text. Raw length caps (max_thinking_chars)
+    alone miss a degenerate run shorter than the cap -- this catches the actual pattern."""
+    return (_runaway_cut(text, THINK_NOPUNCT_RUN_MAX) is not None
+            or _looks_repeating(text))
+
+
+class _ContentGate:
+    """Sentence-granular holdback for streamed content. The visible answer must NEVER show
+    degenerate text, not just get caught fast -- catch-after-it's-on-screen isn't good enough.
+
+    Text is only released up to the last real sentence/row break; anything after that stays
+    held. A degenerate run has no break chars by definition, so it sits in the held tail and is
+    NEVER released -- on a pattern trip the held tail is simply dropped, never shown. Cost: the
+    reply displays in sentence-sized chunks instead of a smooth per-token stream (accepted
+    tradeoff -- trust over smoothness)."""
+
+    def __init__(self):
+        self.text = ""   # everything received this round, held + released
+        self.sent = 0     # how much of self.text has been released already
+        self._since = 0   # chars since the last _looks_repeating check (bounds its O(n) cost)
+
+    def feed(self, piece: str):
+        """Returns (text_to_release_now, trip_reason). trip_reason is None (keep reading),
+        'pattern' (genuine degeneration -- discard the unshown tail) or 'cap' (hit
+        CONTENT_CHAR_CAP with a CLEAN pattern -- just a long legitimate answer; caller should
+        flush everything, not discard it). Checked in that order: a length+pattern double-hit
+        is still real degeneration, not a false "just long" case."""
+        self.text += piece
+        self._since += len(piece)
+        check_repeat = self._since >= 400
+        if check_repeat:
+            self._since = 0
+        if _runaway_cut(self.text) is not None or (check_repeat and _looks_repeating(self.text)):
+            return "", "pattern"
+        if len(self.text) > CONTENT_CHAR_CAP:
+            return "", "cap"
+        release_to = _last_break(self.text) + 1
+        if release_to > self.sent:
+            out = self.text[self.sent:release_to]
+            self.sent = release_to
+            return out, None
+        return "", None
+
+    def flush(self) -> str:
+        """Stream ended cleanly, or a 'cap' trip -- release whatever's still held, even without
+        a trailing break (a legitimate reply can end mid-sentence on length alone)."""
+        out = self.text[self.sent:]
+        self.sent = len(self.text)
+        return out
+
+    def trip(self) -> str:
+        """'pattern' trip fired -- the SAFE (already-release-worthy) content only. The held
+        tail (never sent anywhere) is simply not included -- that's the whole point."""
+        return _trim_runaway(self.text)
+
 
 def run_web(app, ns, name, args):
     """(result_text, None, label). Logs counts and provider only, never the query or URL."""
     args = args if isinstance(args, dict) else {}
-    if not (app.cfg.web):
+    if not app.cfg.web:
         return "error: web access is turned off", None, ""
+    if not app.groups.allowed(ns, "web"):
+        return "error: web search is not enabled for your account", None, ""
     try:
         if name == "web_search":
             q = str(args.get("query") or "")
@@ -352,53 +456,115 @@ def generate(app, ns, conv, model, msgs, think, stop, viewed=None):
     """Yields ("chunk", Chunk) and ("tool", {"name", "label"}). Runs the model; if it asks to use
     project-file tools, runs them (read-only, scoped to this project) and continues, up to MAX_TOOL_ROUNDS."""
     pid = conv.get("project_id")
-    use_files = bool(app.cfg.tools and pid and app.files.has_files(ns, pid))
-    use_web = bool(app.cfg.web and conv.get("web"))
+    use_files = bool(app.cfg.tools and pid and app.files.has_files(ns, pid) and app.groups.allowed(ns, "files"))
+    use_web = bool(app.cfg.web and conv.get("web") and app.groups.allowed(ns, "web"))
     use_tools = use_files or use_web
     work = list(msgs)
     budget = max(4000, int((app.cfg.context_tokens or 32768) * 4 * 0.25))
     for rnd in range(MAX_TOOL_ROUNDS + 1):
         offer = ((tools_mod.SCHEMAS if use_files else []) + (web_mod.SCHEMAS if use_web else [])) if use_tools and rnd < MAX_TOOL_ROUNDS else None
         calls, text, gen = [], "", None
+        gate = _ContentGate()
         try:
             try:
                 gen = app.backend().chat_stream(model, work, tools=offer, options=model_options(app), think=think)
-                think_chars, capped = 0, False
+                think_chars, think_since, thinking_acc, capped, cap_tag = 0, 0, "", False, None
+                content_trip = None
                 for chunk in gen:
                     if stop.is_set():
                         return
                     calls += chunk.tool_calls
                     text += chunk.content
+                    thinking_acc += chunk.thinking
                     think_chars += len(chunk.thinking)
+                    think_since += len(chunk.thinking)
+                    if chunk.content:
+                        out, content_trip = gate.feed(chunk.content)
+                        if content_trip:
+                            break
+                        chunk.content = out
                     yield ("chunk", chunk)
                     cap = app.cfg.max_thinking_chars
-                    if think and cap and think_chars > cap and not text and not calls:
-                        capped = True
+                    think_degenerate = False
+                    if think_since >= 400:
+                        think_since = 0
+                        think_degenerate = not gate.text and not calls and _thinking_degenerate(thinking_acc)
+                    if think and not gate.text and not calls and ((cap and think_chars > cap) or think_degenerate):
+                        capped, cap_tag = True, ("thinking_pattern" if think_degenerate else "thinking_time")
                         break
+                if content_trip:
+                    # 2026-11-04, same real-incident fix as levi-webui (see
+                    # that project's decision-ledger) -- content must NEVER
+                    # visibly show degenerate text, and a merely-long clean
+                    # reply must NOT be discarded or blamed as degenerate.
+                    gen.close()
+                    if content_trip == "pattern":
+                        safe = gate.trip()
+                        notice = "\n\nThat answer degenerated into repeated/incoherent text, so it was stopped here. Send a follow-up and I'll try again."
+                        yield ("chunk", backends.Chunk(content=notice))
+                        text = safe + notice
+                        yield ("note", "content_pattern")
+                    else:  # "cap" -- clean pattern, just long; keep ALL of it
+                        rest = gate.flush()
+                        notice = "\n\nThis answer ran long, so I'm pausing here -- say \"continue\" and I'll pick up where I left off."
+                        yield ("chunk", backends.Chunk(content=rest + notice))
+                        text = gate.text + notice
+                        yield ("note", "content_cap")
+                    return
                 if capped:
                     gen.close()
-                    yield ("note", "thinking_cap")
-                    work.append({"role": "user", "content": "(Time limit on reasoning reached. Answer now using only what you "
-                                 "already know and can see. State clearly what is a guess and what you could not check.)"})
+                    yield ("note", cap_tag)
+                    nudge = ("Your last reasoning degenerated into repeated/incoherent text -- discarded, not "
+                             "shown. Answer the question now, cleanly and concisely, using only what you "
+                             "already know and can see.") if cap_tag == "thinking_pattern" else (
+                             "(Reasoning is running long. Answer now using only what you already know and can "
+                             "see. State clearly what is a guess and what you could not check.)")
+                    work.append({"role": "user", "content": nudge})
                     gen = app.backend().chat_stream(model, work, tools=None, options=model_options(app), think=False)
+                    gate2 = _ContentGate()
                     for chunk in gen:
                         if stop.is_set():
                             return
+                        if chunk.content:
+                            out, trip2 = gate2.feed(chunk.content)
+                            if trip2:
+                                break
+                            chunk.content = out
                         yield ("chunk", chunk)
+                    tail2 = gate2.flush()
+                    if tail2:
+                        yield ("chunk", backends.Chunk(content=tail2))
                     return
             except backends.BackendError as e:
                 if offer and rnd == 0 and "tool" in str(e).lower():
                     use_tools, offer = False, None   # this model cannot use tools; carry on without
                     gen = app.backend().chat_stream(model, work, options=model_options(app), think=think)
+                    gate3 = _ContentGate()
                     for chunk in gen:
                         if stop.is_set():
                             return
+                        if chunk.content:
+                            out, trip3 = gate3.feed(chunk.content)
+                            if trip3:
+                                break
+                            chunk.content = out
                         yield ("chunk", chunk)
+                    tail3 = gate3.flush()
+                    if tail3:
+                        yield ("chunk", backends.Chunk(content=tail3))
                     return
                 raise
         finally:
             if gen is not None:
                 gen.close()
+        # Loop ended cleanly (no content_trip, no capped break) -- flush
+        # whatever the gate is still holding (most replies end mid-
+        # sentence with no trailing break char at all; without this the
+        # held tail -- sometimes the WHOLE reply -- would never reach
+        # the browser). Real regression caught by test_chat_streams_and_persists.
+        tail = gate.flush()
+        if tail:
+            yield ("chunk", backends.Chunk(content=tail))
         if not calls:
             return
         work.append({"role": "assistant", "content": text, "tool_calls": calls})
@@ -493,10 +659,13 @@ def _chat(h, st, ns, conv, body):
         return h._json(400, {"error": "invalid model"}) or True
 
     if "web" in body:
-        conv["web"] = bool(body["web"]) and cfg.web
+        conv["web"] = bool(body["web"]) and cfg.web and h.app.groups.allowed(ns, "web")
     conv["model"] = model
     if conv["title"] == "New chat":
         conv["title"] = auto_title(text)
+    hits = usage_mod.pii_counts(text)
+    if hits:
+        h.app.telemetry.event("pii", user=ns, counts=hits)
     turn = {"role": "user", "content": text, "ts": time.time()}
     if images:
         turn["images"] = images
@@ -581,7 +750,17 @@ def _chat(h, st, ns, conv, body):
                 break
         elif kind == "note":
             capped = True
-            emit({"type": "note", "text": "Reasoning hit its time limit, so the model was told to answer with what it has."})
+            # 2026-11-04 -- distinct wording per real cause, ported from
+            # levi-webui's same fix: avoid "limit" framing (Devin's
+            # explicit ask) and never call a merely-long clean reply
+            # the same thing as genuine degeneration.
+            note_text = {
+                "thinking_time": "Reasoning ran long, so the model was told to answer with what it has.",
+                "thinking_pattern": "Reasoning started repeating itself, so it was stopped and the model was told to answer with what it has.",
+                "content_pattern": "That answer degenerated into repeated/incoherent text, so it was stopped.",
+                "content_cap": "That answer ran long, so it's continuing in a follow-up.",
+            }.get(val, "Reasoning ran long, so the model was told to answer with what it has.")
+            emit({"type": "note", "text": note_text})
         elif kind == "tool":
             tools_used.append(val)
             emit({"type": "tool", "name": val["name"], "label": val["label"]})

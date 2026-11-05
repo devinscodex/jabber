@@ -139,7 +139,7 @@ class ThinkingCapTests(Base):
         self.assertIn("note", [e["type"] for e in ev])
         self.assertEqual("".join(e["text"] for e in ev if e["type"] == "content_delta"), "Best guess: low confidence.")
         self.assertFalse(self.calls[-1]["think"])
-        self.assertIn("Time limit on reasoning", self.calls[-1]["messages"][-1]["content"])
+        self.assertIn("Reasoning is running long", self.calls[-1]["messages"][-1]["content"])
         with open(self.app.telemetry.path) as fh:
             self.assertIn('"thinking_capped":true', fh.read())
 
@@ -151,9 +151,35 @@ class ThinkingCapTests(Base):
 
     def test_cap_can_be_disabled(self):
         self.app.cfg.max_thinking_chars = 0
-        self.script = [lambda m: [Chunk("", "x" * 200) for _ in range(10)] + [Chunk("done."), Chunk(done=True)]]
+        # Non-repeating filler (2026-11-04): a flat "x"*200 repeat block
+        # looks exactly like genuine degenerate repetition to the new
+        # pattern guard below, independent of max_thinking_chars -- this
+        # test is specifically about the LENGTH cap, so the filler must
+        # vary (no shared substring across OR within chunks) to avoid
+        # tripping the other guard.
+        self.script = [lambda m: [Chunk("", "".join("w%dx%dy " % (i, j) for j in range(30))) for i in range(10)]
+                       + [Chunk("done."), Chunk(done=True)]]
         ev = self.chat("hi")
         self.assertNotIn("note", [e["type"] for e in ev])
+
+    def test_degenerate_pattern_cuts_even_with_cap_disabled(self):
+        # 2026-11-04 (ported from levi-webui after a real recurrence
+        # there despite min_p alone) -- a raw length cap misses
+        # degenerate reasoning that never gets long enough to hit it.
+        # This guard is independent of max_thinking_chars on purpose.
+        self.app.cfg.max_thinking_chars = 0
+        synonyms = ("quick fast rapid speedy swift brisk nimble agile spry zippy hasty brief prompt "
+                    "snappy sudden instant immediate abrupt fleet winged darting ") * 3
+        # No punctuation anywhere and well over THINK_NOPUNCT_RUN_MAX (2400) -- deterministic
+        # trip via the no-punctuation-run check, not relying on the repeat-count check's exact
+        # 200-char window alignment.
+        self.script = [lambda m: [Chunk("", synonyms) for _ in range(7)] + [Chunk(done=True)],
+                       lambda m: [Chunk("Best guess: low confidence."), Chunk(done=True)]]
+        ev = self.chat("identify this")
+        self.assertIn("note", [e["type"] for e in ev])
+        self.assertEqual("".join(e["text"] for e in ev if e["type"] == "content_delta"), "Best guess: low confidence.")
+        self.assertFalse(self.calls[-1]["think"])
+        self.assertIn("degenerated", self.calls[-1]["messages"][-1]["content"])
 
 
 if __name__ == "__main__":

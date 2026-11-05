@@ -698,6 +698,15 @@ function pendingDotsHtml() {
   return 'Thinking <span class="pending-dots"><span></span><span></span><span></span></span>';
 }
 
+// Sticky-scroll helper (2026-11-04, ported from levi-webui's same fix --
+// unconditional scrollTop on every streaming delta fights anyone trying
+// to scroll up to re-read while a reply is still generating). Call
+// BEFORE mutating the DOM (scrollHeight changes the instant content is
+// added, so checking after would always read "already at the bottom").
+function isNearBottom(el) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+}
+
 function buildThinkingBlock(thinking, label) {
   const wrap = document.createElement('div');
   const autoExpand = localStorage.getItem('jabber-autoexpand-thinking') === '1';
@@ -1102,6 +1111,7 @@ async function sendMessage() {
         try { evt = JSON.parse(line); } catch (e) { continue; }
 
         if (evt.type === 'thinking_delta') {
+          const stick = isNearBottom(messagesEl);
           if (!thinkingEl) {
             thinkingStartMs = performance.now();
             thinkingEl = buildThinkingBlock('');
@@ -1110,8 +1120,9 @@ async function sendMessage() {
           }
           rawThinking += evt.text;
           thinkingEl.querySelector('.thinking-body').textContent = rawThinking;
-          messagesEl.scrollTop = messagesEl.scrollHeight;
+          if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
         } else if (evt.type === 'content_delta') {
+          const stick = isNearBottom(messagesEl);
           if (!sawContent) {
             pending.querySelector('.bubble').innerHTML = '';
             sawContent = true;
@@ -1127,7 +1138,7 @@ async function sendMessage() {
           rawContent += evt.text;
           pending.dataset.rawText = rawContent;
           pending.querySelector('.bubble').innerHTML = renderMarkdown(rawContent);
-          messagesEl.scrollTop = messagesEl.scrollHeight;
+          if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
         } else if (evt.type === 'note') {
           const n = document.createElement('div');
           n.className = 'tool-chips';
