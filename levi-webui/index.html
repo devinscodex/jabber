@@ -4195,11 +4195,10 @@ setInterval(() => {
       <div class="sx-nav-label">General</div>
       <a data-p="account" class="on">Account</a>
       <a data-p="appearance">Appearance</a>
-      <a data-p="behavior">Behavior</a>
       <a data-p="changelog">Changelog</a>
       <div class="sx-nav-label">Data &amp; Feedback</div>
       <a data-p="usage">Usage</a>
-      <a data-p="feedback">Feedback</a>
+      <a data-p="feedback" style="display:none">Feedback</a>
       <a data-p="data">Conversation Data</a>
       <div class="sx-gap"></div>
       <button class="sx-close" onclick="document.getElementById('settingsOverlay').classList.remove('open')">Close</button>
@@ -4227,16 +4226,9 @@ setInterval(() => {
         </div>
       </div>
 
-      <div class="sx-panel" id="sx-behavior">
-        <h2>Behavior</h2><div class="sx-sub">How replies are shown.</div>
-        <div class="sx-card">
-          <div class="sx-row"><div><div class="l">Auto-expand thinking</div><div class="d">Only applies when your administrator has turned reasoning display on. It can always be collapsed per message.</div></div><input type="checkbox" id="autoExpandThinking"></div>
-        </div>
-      </div>
-
       <div class="sx-panel" id="sx-changelog">
         <h2>Changelog</h2><div class="sx-sub">What's changing in Leviathan / Jabber.</div>
-        <div class="sx-note" style="margin:-10px 0 14px"><a href="https://github.com/devinscodex/jabber/tree/leviathan" target="_blank" rel="noopener">Open source on GitHub</a></div>
+        <div class="sx-note" style="margin:-10px 0 14px"><a href="https://github.com/devinscodex/jabber/tree/leviathan" target="_blank" rel="noopener">Open source on GitHub</a> &middot; <a href="https://github.com/devinscodex/jabber/tree/v0.1" target="_blank" rel="noopener">v0.1</a></div>
         <div class="sx-about">
           <div class="sx-about-label">What is Jabber?</div>
           <div style="white-space:pre-wrap">Jabber is Org's own framework for running local AI models through a web interface. It connects to models hosted on our own Leviathan server instead of a public AI service, so conversations stay on our own hardware and are never sent out to a third party. For some users, it can also connect to Sage, Wrike, and company files to help answer specific work questions.</div>

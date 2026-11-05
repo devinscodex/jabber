@@ -7,7 +7,7 @@
   {
     "date": "2026-10-22",
     "title": "Fixed replies drifting into gibberish",
-    "body": "Fixed a rare bug where a long reply could drift away from real words into a chain of loosely related synonyms instead of actual sentences. Long replies read coherently all the way through now."
+    "body": "Fixed a bug where a long reply could drift away from real words into a chain of loosely related synonyms instead of actual sentences. Long replies read coherently all the way through now."
   },
   {
     "date": "2026-10-21",
