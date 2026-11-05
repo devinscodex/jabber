@@ -310,11 +310,7 @@ def _usage_summary(ns: str, now=None) -> dict:
     days = []
     for i in range(6, -1, -1):
         lo, hi = now - (i + 1) * day, now - i * day
-        days.append({"label": time.strftime("%a", time.localtime(hi)), "tokens": sum(tok(e) for e in chats if lo <= e["ts"] < hi)})
-    weeks = []
-    for i in range(3, -1, -1):
-        lo, hi = now - (i + 1) * 7 * day, now - i * 7 * day
-        weeks.append({"label": "Wk %d" % (4 - i), "tokens": sum(tok(e) for e in chats if lo <= e["ts"] < hi)})
+        days.append({"label": time.strftime("%b %-d", time.localtime(hi)), "tokens": sum(tok(e) for e in chats if lo <= e["ts"] < hi)})
     week = [e for e in chats if e["ts"] >= now - 7 * day]
     skills = {}
     for e in week:
@@ -327,7 +323,7 @@ def _usage_summary(ns: str, now=None) -> dict:
         if e.get("kind") == "pii" and e.get("ns") == ns:
             for k, v in (e.get("counts") or {}).items():
                 pii[k] = pii.get(k, 0) + v
-    return {"messages_week": len(week), "tokens": {"day": days, "week": weeks, "week_total": wk_tokens,
+    return {"messages_week": len(week), "tokens": {"day": days, "week_total": wk_tokens,
             "month_total": sum(tok(e) for e in chats), "daily_avg": round(wk_tokens / 7)},
             "prompt_week": wk_prompt, "completion_week": wk_tokens - wk_prompt,
             "words_week": round(wk_tokens * WORDS_PER_TOKEN), "skills": skills, "sensitive_total": sum(pii.values())}
@@ -1335,7 +1331,7 @@ def _project_instructions(conv: dict, ns: str) -> str | None:
     as 'no instructions', not an error.
 
     Real bug fixed 2026-10-08 (Devin, live: "the chat/convo still has no
-    idea what project its in" -- confirmed root cause via a real
+    idea what project its in" -- confirmed root cause via Emma's real
     conversation: project_id WAS correctly linked, list_project_folder
     genuinely returned her real files when called directly with the
     right id, but the model never called it, because nothing ever told
@@ -1443,7 +1439,7 @@ MAX_CHAT_IMAGE_BYTES = 50_000_000      # transport bound, post-client-downscale 
 MAX_CHAT_IMAGES_PER_MESSAGE = 4        # real, generous bound -- not unlimited
 
 # Real document text extraction, added 2026-10-08 (Devin: real pilot user
-# -- a pilot user -- tried to upload a PDF/Word doc for comparison, got "nothing
+# -- Emma -- tried to upload a PDF/Word doc for comparison, got "nothing
 # uploadable in that pick" from the client-side binary-content filter.
 # Root cause: the whole upload pipeline only ever read files as plain
 # text via the browser's File.text() -- correct behavior for .md/.py/.txt,
@@ -1460,7 +1456,7 @@ MAX_CHAT_IMAGES_PER_MESSAGE = 4        # real, generous bound -- not unlimited
 # python-docx/PyPDF2/etc. install needed. Matches this project's own
 # "compose from what's already here" doctrine (module docstring above).
 #
-# Extended 2026-10-12 ("major filetype support" -- a pilot user's own
+# Extended 2026-10-12 (Devin: "major filetype support" -- Emma's own
 # live case was emails.xlsx silently failing extraction because .xlsx
 # was never in this set at all, confirmed in her real conversation log
 # via direct Leviathan file inspection). Added, same zero-new-deps
@@ -1539,7 +1535,7 @@ LIBREOFFICE_CONVERT_TIMEOUT_S = 60
 # just waits its turn instead of piling onto GPU-box memory pressure.
 _LO_CONVERT_SEMAPHORE = threading.Semaphore(2)
 
-# Real OCR fallback, added 2026-10-14 -- a real pilot user reported
+# Real OCR fallback, added 2026-10-14 -- a real pilot user (Emma) reported
 # a scanned/image-only PDF came back "didn't get extracted" for a document
 # comparison task (council review -- bard+grok -- confirmed this is the
 # same known gap the 2026-10-12 session's own comment already named:
@@ -1851,7 +1847,7 @@ def _extract_xlsx_text(raw: bytes) -> str:
     straight in <v>. All 3 handled; cells are tab-joined per row,
     sheets separated by a real "--- sheetN.xml ---" header so a
     multi-tab workbook doesn't blur into one undifferentiated blob
-    (a real pilot use case -- comparing one list against another --
+    (Emma's real use case -- comparing one list against another --
     needs that boundary to make sense of which list is which).
 
     Same zip-bomb discipline as DOCX: every worksheet/sharedStrings
@@ -2410,7 +2406,7 @@ def _ollama_ready_messages(messages: list) -> list:
     right before each call -- the real stored conv/history_messages list
     is never mutated, only the outgoing request shape.
 
-    Real bug fixed 2026-10-19 (sweep of real conversations):
+    Real bug fixed 2026-10-19 (Leviathan sweep, a real pilot conversation):
     a flaky frontend paste can persist an images entry with real mime
     metadata but an EMPTY data string -- {"mime": "image/png", "data":
     ""} -- confirmed live on disk, the image-paste path from the
@@ -2469,7 +2465,7 @@ def _ollama_call(model: str, messages: list, ns: str | None = None) -> dict:
 
 def _ollama_call_final(model: str, messages: list) -> dict:
     """Real fallback for MAX_TOOL_ROUNDS being hit, added 2026-10-08 (bug
-    found live, a real pilot user asked a broad factual question
+    found live, real pilot user -- Emma -- asked a broad factual question
     ("where are all the locations for the company"), the model
     kept refining web_search queries round after round chasing an exact
     address for every location instead of answering with what it already
@@ -2899,7 +2895,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 # identifier the model states but that never appeared
                 # in this turn's real sage_* tool output used to only
                 # get a footnote AFTER being shown to the user (real
-                # incident: a real session invented table names
+                # incident: a user's session invented table names
                 # "GLJobHdr"/"PMJob" that were never in any
                 # sage_list_tables output). Reject the round instead --
                 # the content is discarded, never shown -- and force a
@@ -3951,7 +3947,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # reliably carry "email" (see cf_access_auth.py's own
             # verify()), never a guaranteed human display name claim, so
             # the name is DERIVED from the email's local-part (e.g.
-            # "jdoe" -> "Jdoe") -- not pretty, but real and
+            # "jsmith" -> "Jsmith") -- not pretty, but real and
             # user-specific, which a hardcoded "Devin" never was for
             # anyone else. "local" (auth-disabled single-user dev mode)
             # gets a plain "You" rather than a fabricated name.
@@ -4756,7 +4752,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if self.path.startswith("/api/conversations/") and self.path.endswith("/set-project"):
             # Real conversation-to-project linking, added 2026-10-08
-            # (real pilot user attached files to an
+            # (Devin: real pilot user -- Emma -- attached files to an
             # ALREADY-OPEN chat via the new chat-level attach feature;
             # attachFilesToChat() created a real project + uploaded real
             # files successfully, but never updated THIS conversation's
@@ -4802,7 +4798,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # the chat if using clippy") -- a 📎 upload via attachFilesToChat
             # wrote real files to the project folder and linked project_id,
             # but nothing ever appeared IN the conversation itself: from
-            # the chat transcript's own point of view, the user's next
+            # the chat transcript's own point of view, Devin or Emma's next
             # message looked like it came out of nowhere, no visible record
             # an attachment happened at that point. This appends a real
             # persisted message (role=user, so it renders exactly like any

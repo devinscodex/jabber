@@ -309,12 +309,12 @@ body.dash-collapsed .dash{ padding:0; overflow:hidden; border:none; }
 .proj.active{ background: rgba(var(--moss), 0.14); color: var(--ink); }
 .proj .proj-icon{
   width:18px; height:18px; border-radius:5px; flex:none; display:flex; align-items:center; justify-content:center;
-  font-size:.66rem; font-weight:800; color:#fff;
+  font-size:.82rem; font-weight:800; color:var(--ink); background:transparent;
 }
 .proj .projtitle{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
 .proj .projfolder{ font-size:.68rem; color: var(--ink-faint); cursor:pointer; flex:none; }
 .proj .projfolder:hover{ color: var(--moss-solid); }
-.proj-all .proj-icon{ background: var(--ink-faint); }
+.proj-all .proj-icon{ color: var(--ink-faint); }
 .proj .projsettingsbtn{
   opacity:0; flex-shrink:0; border:none; background:transparent; color: var(--ink-faint);
   cursor:pointer; font-size:.78rem; padding:2px 5px; border-radius:4px;
@@ -332,16 +332,6 @@ body.dash-collapsed .dash{ padding:0; overflow:hidden; border:none; }
 }
 .icon-swatch:hover{ background: var(--bg-3); }
 .icon-swatch.selected{ border-color: var(--moss-solid); background: rgba(var(--moss), 0.18); }
-.color-picker-row{ display:flex; flex-wrap:wrap; gap:8px; }
-/* Phase 4 fix (2026-10-26, Devin: add white/black/grey) -- unselected
-   border was transparent, so a white swatch vanished against the
-   settings-panel's own near-white bg on light themes (var(--card) is
-   #f9f9f9 on martin-light). Visible-but-subtle var(--line) ring on
-   every swatch, selected state still overrides it below. */
-.color-swatch{
-  width:28px; height:28px; border-radius:50%; border:2px solid var(--line); cursor:pointer; padding:0;
-}
-.color-swatch.selected{ border-color: var(--ink); box-shadow: 0 0 0 2px var(--bg-2); }
 
 /* ===== decorative background grid toggle (Phase 2, 2026-10-26;
    unified Phase 5 fix, 2026-10-26) =====
@@ -1286,16 +1276,12 @@ body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-
      _valid_project_color in server.py for the real validation. -->
 <div class="settings-overlay" id="projIconOverlay">
   <div class="settings-panel" style="width:440px">
-    <h2>Icon &amp; color</h2>
+    <h2>Edit icon</h2>
     <div class="sub">Purely decorative -- helps you spot this project in the sidebar, never affects sorting, search, or anything the model sees.</div>
     <input type="hidden" id="projIconId">
     <div class="settings-section">
       <h4>Icon</h4>
       <div id="iconPickerGrid" class="icon-picker-grid"></div>
-    </div>
-    <div class="settings-section">
-      <h4>Color</h4>
-      <div id="colorPickerRow" class="color-picker-row"></div>
     </div>
     <button class="settings-close" onclick="saveProjectIcon()">Save</button>
     <button class="settings-close" style="margin-top:8px" onclick="document.getElementById('projIconOverlay').classList.remove('open')">Close</button>
@@ -1332,7 +1318,7 @@ body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-
       <textarea id="inputBox" rows="1" placeholder="Message Cairn…"></textarea>
       <button class="sendbtn" id="sendBtn">↑</button>
     </div>
-    <div class="inputhint" id="chatInputHint">Real Org users, Cloudflare Access + Entra verified — 📎 or drag files in to attach them to the current project, or paste a screenshot directly into the chat</div>
+    <div class="inputhint" id="chatInputHint">📎 or drag files in to attach them to the current project, or paste a screenshot directly into the chat</div>
   </div>
 </div>
 
@@ -1467,25 +1453,9 @@ async function loadProjects() {
   } catch (e) { /* Beacon unreachable -- leave stale list rather than blank it */ }
 }
 
-// Real per-project color-coding (2026-08-17, Grok-sidebar pass) -- a
-// fixed palette cycled by list position, deterministic across renders
-// (allProjects' own order is stable, server-sourced by created-desc), not
-// a per-render random pick that would flicker on refresh. Purely a UI
-// distinguishing aid, not a stored/settable project property (no schema
-// change needed for this).
-//
-// Phase 2 (2026-10-26): real p.icon/p.color now exist, set via the
-// curated picker (openProjectIconPicker below) and persisted server-side
-// through /api/projects/<id>/update, validated there by
-// _valid_project_icon/_valid_project_color (server.py). Devin overrode
-// the 5-leg review's "color swatches only" recommendation and wanted a
-// real emoji picker -- the review's actual security concern (emoji as
-// a second XSS-adjacent injection sink) is addressed by server-side
-// validation plus the safe textContent rendering below, not by cutting
-// the feature. p.color || projectColor(idx) still wins when a project
-// hasn't set its own color -- this palette stays as that fallback.
-const PROJECT_COLORS = ['#5a82c8', '#b46fd1', '#3aa99f', '#d99a2b', '#c0392b', '#62a945', '#7d7ddb', '#ffffff', '#1a1a1a', '#888888'];
-function projectColor(idx) { return PROJECT_COLORS[idx % PROJECT_COLORS.length]; }
+// Per-project icon picker (Phase 2, 2026-10-26; color removed 2026-11-05,
+// Devin: transparent bg, icon/emoji only -- see openProjectIconPicker
+// below and _valid_project_icon in server.py for the real validation).
 
 // Curated emoji palette for the project icon picker (Phase 2). Fixed
 // set only -- no free-text input, no OS emoji picker passthrough --
@@ -1508,14 +1478,13 @@ const EMOJI_PALETTE = {
 };
 let iconPickerProjId = null;
 let iconPickerIcon = null;
-let iconPickerColor = null;
 
-// Builds the icon/color picker body fresh on every selection change --
-// cheap (a few dozen fixed buttons), simplest way to keep the
-// "selected" highlight in sync with iconPickerIcon/iconPickerColor.
-// Every value rendered here is a hardcoded literal from EMOJI_PALETTE/
-// PROJECT_COLORS, set via textContent/style, never innerHTML of
-// anything user-supplied -- same safe-DOM discipline as renderProjList.
+// Builds the icon picker body fresh on every selection change -- cheap
+// (a few dozen fixed buttons), simplest way to keep the "selected"
+// highlight in sync with iconPickerIcon. Every value rendered here is
+// a hardcoded literal from EMOJI_PALETTE, set via textContent, never
+// innerHTML of anything user-supplied -- same safe-DOM discipline as
+// renderProjList.
 function renderIconPicker() {
   const grid = document.getElementById('iconPickerGrid');
   grid.innerHTML = '';
@@ -1540,26 +1509,11 @@ function renderIconPicker() {
     });
     grid.appendChild(row);
   });
-  const colorRow = document.getElementById('colorPickerRow');
-  colorRow.innerHTML = '';
-  PROJECT_COLORS.forEach(c => {
-    const sw = document.createElement('button');
-    sw.type = 'button';
-    sw.className = 'color-swatch' + (iconPickerColor === c ? ' selected' : '');
-    sw.style.background = c;
-    sw.title = c;
-    sw.addEventListener('click', () => {
-      iconPickerColor = (iconPickerColor === c ? null : c);
-      renderIconPicker();
-    });
-    colorRow.appendChild(sw);
-  });
 }
 
 function openProjectIconPicker(p) {
   iconPickerProjId = p.id;
   iconPickerIcon = p.icon || null;
-  iconPickerColor = p.color || null;
   document.getElementById('projIconId').value = p.id;
   renderIconPicker();
   document.getElementById('projIconOverlay').classList.add('open');
@@ -1570,7 +1524,7 @@ async function saveProjectIcon() {
   try {
     await fetch(`/api/projects/${iconPickerProjId}/update`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ icon: iconPickerIcon || '', color: iconPickerColor || '' }),
+      body: JSON.stringify({ icon: iconPickerIcon || '' }),
     });
   } catch (e) {}
   document.getElementById('projIconOverlay').classList.remove('open');
@@ -1591,7 +1545,7 @@ function renderProjList() {
   allItem.innerHTML = `<span class="proj-icon">*</span><span class="projtitle">All conversations</span>`;
   allItem.addEventListener('click', () => { currentProjectId = null; renderProjList(); renderConvList(); });
   projListEl.appendChild(allItem);
-  allProjects.forEach((p, idx) => {
+  allProjects.forEach((p) => {
     const wrap = document.createElement('div');
     wrap.className = 'proj-wrap';
 
@@ -1612,7 +1566,6 @@ function renderProjList() {
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'proj-icon';
-    iconSpan.style.background = p.color || projectColor(idx);
     iconSpan.textContent = p.icon || initial; // p.icon: Phase 2 curated picker value, falls back to initial letter
 
     const titleSpan = document.createElement('span');
@@ -1644,7 +1597,7 @@ function renderProjList() {
         // palette, server-side validation on save -- see
         // openProjectIconPicker/EMOJI_PALETTE above and
         // _valid_project_icon in server.py).
-        { icon: '🎨', label: 'Icon & color', onClick: () => openProjectIconPicker(p) },
+        { icon: '🎨', label: 'Edit icon', onClick: () => openProjectIconPicker(p) },
         { icon: '⚙', label: 'Settings', onClick: () => openProjectSettings(p.id) },
         { divider: true },
         { icon: '🗑', label: 'Delete', danger: true, onClick: () => deleteProjectQuick(p) },
@@ -4197,9 +4150,8 @@ setInterval(() => {
       <a data-p="appearance">Appearance</a>
       <a data-p="changelog">Changelog</a>
       <div class="sx-nav-label">Data &amp; Feedback</div>
-      <a data-p="usage">Usage</a>
+      <a data-p="usage">Your usage</a>
       <a data-p="feedback" style="display:none">Feedback</a>
-      <a data-p="data">Conversation Data</a>
       <div class="sx-gap"></div>
       <button class="sx-close" onclick="document.getElementById('settingsOverlay').classList.remove('open')">Close</button>
     </nav>
@@ -4228,7 +4180,7 @@ setInterval(() => {
 
       <div class="sx-panel" id="sx-changelog">
         <h2>Changelog</h2><div class="sx-sub">What's changing in Leviathan / Jabber.</div>
-        <div class="sx-note" style="margin:-10px 0 14px">version <a href="https://github.com/devinscodex/jabber/tree/v0.1" target="_blank" rel="noopener">v0.1</a></div>
+        <div class="sx-note" style="margin:-10px 0 14px">version <a href="https://github.com/devinscodex/jabber/tree/v0.1.1" target="_blank" rel="noopener">0.1.1</a></div>
         <div class="sx-about">
           <div class="sx-about-label">What is Jabber?</div>
           <div style="white-space:pre-wrap">Jabber is Org's own framework for running local AI models through a web interface. It connects to models hosted on our own Leviathan server instead of a public AI service, so conversations stay on our own hardware and are never sent out to a third party. For some users, it can also connect to Sage, Wrike, and company files to help answer specific work questions.</div>
@@ -4248,7 +4200,7 @@ setInterval(() => {
       </div>
 
       <div class="sx-panel" id="sx-usage">
-        <h2>Usage</h2><div class="sx-sub">Your own usage. Nothing here is shared with other users.</div>
+        <h2>Your usage</h2><div class="sx-sub">Your own usage. Nothing here is shared with other users.</div>
         <div id="sxUsageBody"><div class="sx-note">Loading...</div></div>
       </div>
 
@@ -4266,14 +4218,6 @@ setInterval(() => {
           <div class="sx-note">Saved on the server for your administrator to read. Attachments are only sent if you add them. Nothing from your conversations is attached.</div>
         </div>
         <div class="sx-card" id="sxFbInbox" style="display:none"><h4>Feedback received (admin)</h4><div id="sxFbList"></div></div>
-      </div>
-
-      <div class="sx-panel" id="sx-data">
-        <h2>Conversation Data</h2><div class="sx-sub">Your saved chats.</div>
-        <div class="sx-card">
-          <div class="sx-row"><div><div class="l">Export history</div><div class="d">Local file, your machine only</div></div><span class="sx-btn" onclick="exportAllConversations()">Export</span></div>
-          <div class="sx-row"><div><div class="l">Clear all conversations</div><div class="d">Cannot be undone</div></div><span class="sx-btn" onclick="clearAllConversations()">Clear</span></div>
-        </div>
       </div>
 
       <div class="sx-panel" id="sx-adminpanel">
@@ -4413,35 +4357,32 @@ setInterval(() => {
   const SKILL_NAMES = [[/^sage/, 'Sage (ERP)'], [/^wrike/, 'Wrike (tasks)'], [/file|doclink|jobs|sales/, 'File access'], [/web|search|fetch/, 'Web search'], [/office|create_|document|spreadsheet|presentation/, 'Documents']];
   const skillLabel = (n) => { for (const [rx, l] of SKILL_NAMES) if (rx.test(n)) return l; return n; };
   const RATE_IN = 2.5, RATE_OUT = 10;
-  let usage = null, range = 'day';
+  let usage = null;
   function drawChart() {
     if (!usage) return;
-    const rows = range === 'day' ? usage.tokens.day : usage.tokens.week;
+    const rows = usage.tokens.day;
     const max = Math.max(1, ...rows.map((r) => r.tokens));
     $('sxY').innerHTML = [max, max * 0.75, max * 0.5, max * 0.25, 0].map((x) => '<span>' + fmt(x) + '</span>').join('');
     $('sxChart').innerHTML = rows.map((r) => { const h = Math.round((r.tokens / max) * 100); return '<div class="c' + (r.tokens === max && max > 1 ? ' pk' : '') + '" title="' + r.tokens.toLocaleString() + ' tokens">' + (r.tokens ? '<div class="v" style="bottom:calc(' + h + '% + 3px)">' + fmt(r.tokens) + '</div>' : '') + '<div class="b" style="height:' + h + '%"></div></div>'; }).join('');
     $('sxX').innerHTML = rows.map((r) => '<span>' + esc(r.label) + '</span>').join('');
-    document.querySelectorAll('#sxRange .sx-tab').forEach((b) => b.classList.toggle('on', b.dataset.r === range));
   }
   async function loadUsage() {
     const box = $('sxUsageBody');
     try { usage = await get('/api/usage'); } catch (e) { box.innerHTML = '<div class="sx-err">Could not load usage.</div>'; return; }
-    const u = usage, t = u.tokens, pages = u.words_week / 250, novel = (u.words_week / 80000) * 100;
+    const u = usage, t = u.tokens;
     const cost = (u.prompt_week / 1e6) * RATE_IN + (u.completion_week / 1e6) * RATE_OUT;
     const skills = Object.entries(u.skills).sort((a, b) => b[1] - a[1]);
     box.innerHTML =
       '<div class="sx-card"><h4>Local tokens used <span class="sx-badge">100% local</span></h4>' +
       '<div class="sx-stats"><div><div class="sx-big">' + fmt(t.week_total) + '</div><span>this week</span></div><div><div class="sx-big">' + fmt(t.daily_avg) + '</div><span>daily average</span></div><div><div class="sx-big">' + fmt(t.month_total) + '</div><span>last 30 days</span></div><div><div class="sx-big">' + u.messages_week + '</div><span>replies this week</span></div></div>' +
-      '<div class="sx-tabs" id="sxRange"><button class="sx-tab on" data-r="day">Daily</button><button class="sx-tab" data-r="week">Weekly</button></div>' +
       '<div class="sx-chartwrap"><div class="sx-y" id="sxY"></div><div class="sx-plot"><div class="sx-chart" id="sxChart"></div><div class="sx-x" id="sxX"></div></div></div>' +
-      '<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px" class="sx-em">This week is about ' + fmt(u.words_week) + ' words, roughly ' + (pages < 10 ? pages.toFixed(1) : Math.round(pages)) + ' pages of text, or ' + (novel < 10 ? novel.toFixed(1) : Math.round(novel)) + '% of a typical 80,000-word novel. Word counts are approximate (about 0.75 words per token).</div></div>' +
+      '<div class="sx-note">(about 0.75 words per token)</div>' +
       '<div class="sx-card"><h4>Skills &amp; integrations used this week</h4>' + (skills.length ? skills.map(([n, c]) => '<div class="sx-tool"><span>' + esc(skillLabel(n)) + '</span><span class="sx-em">' + c + '</span></div>').join('') : '<div class="sx-em">None yet.</div>') + '</div>' +
       '<div class="sx-card"><h4>What this would have cost on public AI</h4><div class="sx-stats"><div><div class="sx-big">$' + cost.toFixed(2) + '</div><span>this week (estimate)</span></div></div>' +
       '<div class="sx-note">Illustrative only, not an invoice: a public model priced at $' + RATE_IN.toFixed(2) + ' per million input tokens and $' + RATE_OUT.toFixed(2) + ' per million output tokens. Here the cost to you is zero.</div></div>' +
       '<div class="sx-card"><h4>Sensitive information kept in-house</h4><div class="sx-stats"><div><div class="sx-big">' + u.sensitive_total + '</div><span>items this week</span></div></div>' +
       '<div class="sx-note">Private details spotted in your messages. A public AI service would have received every one. Here, none of them ever left Leviathan.</div></div>';
-    $('sxRange').addEventListener('click', (e) => { const b = e.target.closest('.sx-tab'); if (b) { range = b.dataset.r; drawChart(); } });
-    range = 'day'; drawChart();
+    drawChart();
   }
 
   // ---- people (admin) -- rewritten 2026-11-03, replaces the old

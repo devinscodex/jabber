@@ -1,5 +1,10 @@
 [
   {
+    "date": "2026-11-04",
+    "title": "Settings page cleanup",
+    "body": "Settings sections now have clearer visual separation. Removed Behavior and Conversation Data; Feedback is hidden until it's fully tested. Usage is now \"Your usage\", with real calendar dates instead of day names. Project icons now use a transparent background instead of a color swatch."
+  },
+  {
     "date": "2026-11-02",
     "title": "See the model's reasoning",
     "body": "For users who have it turned on, you can now expand and read the model's step-by-step reasoning behind a reply, not just the final answer."
