@@ -4,6 +4,7 @@ import json
 import unittest
 
 from jabber import auth_local, tools
+from jabber import api as api_mod
 from jabber.backends import Chunk
 from tests.exif_fixture import jpeg_with_exif
 from tests.test_api import events
@@ -180,6 +181,64 @@ class ThinkingCapTests(Base):
         self.assertEqual("".join(e["text"] for e in ev if e["type"] == "content_delta"), "Best guess: low confidence.")
         self.assertFalse(self.calls[-1]["think"])
         self.assertIn("degenerated", self.calls[-1]["messages"][-1]["content"])
+
+
+class ContentGuardTests(Base):
+    """2026-11-04 -- same guard, ported from levi-webui, now applied to
+    the visible content stream. Full integration coverage via the real
+    generate()/chat()/regenerate() path, not just the gate class alone."""
+
+    def test_clean_short_reply_untouched(self):
+        self.script = [lambda m: [Chunk("Hello! "), Chunk("This is fine."), Chunk(done=True)]]
+        ev = self.chat("hi")
+        self.assertNotIn("note", [e["type"] for e in ev])
+        self.assertEqual("".join(e["text"] for e in ev if e["type"] == "content_delta"), "Hello! This is fine.")
+
+    def test_long_clean_reply_kept_whole_not_blamed(self):
+        long_clean = "".join("Item %d is fine. " % i for i in range(900))  # ~16200 chars, real sentences
+        self.assertGreater(len(long_clean), api_mod.CONTENT_CHAR_CAP)
+        self.script = [lambda m: [Chunk(long_clean), Chunk(done=True)]]
+        ev = self.chat("list many items")
+        shown = "".join(e["text"] for e in ev if e["type"] == "content_delta")
+        self.assertIn(long_clean, shown)  # nothing silently dropped just for being long
+        self.assertIn("ran long", shown)
+        self.assertNotIn("degenerated", shown)
+        self.assertNotIn("limit", shown.lower())  # Devin's explicit ask: no "hit your limit" framing
+
+    def test_degenerate_content_never_shown(self):
+        # Realistic incremental chunking (real backends stream small
+        # deltas, never one giant pre-built blob) -- the clean opener
+        # is released on its own sentence break before the degenerate
+        # tail arrives and trips the guard.
+        synonyms = ("quick fast rapid speedy swift brisk nimble agile spry zippy hasty brief prompt "
+                    "snappy sudden instant immediate abrupt fleet winged darting " * 8).split(" ")
+        chunks = [Chunk("This part is clean. ")]
+        for i in range(0, len(synonyms), 4):
+            chunks.append(Chunk(" ".join(synonyms[i:i + 4]) + " "))
+        chunks.append(Chunk(done=True))
+        self.script = [lambda m: chunks]
+        ev = self.chat("weird")
+        shown = "".join(e["text"] for e in ev if e["type"] == "content_delta")
+        self.assertIn("This part is clean.", shown)
+        self.assertNotIn("zippy hasty brief", shown)  # the degenerate tail must never reach the browser
+        self.assertIn("degenerated", shown)
+        self.assertNotIn("limit", shown.lower())
+        conv = self.c.json("GET", f"/api/conversations/{self.cid}")[1]
+        self.assertNotIn("zippy hasty brief", conv["messages"][-1]["content"])  # not in saved history either
+
+    def test_regenerate_also_protected_same_shared_path(self):
+        # _regenerate() shares generate() with chat() in this codebase
+        # (unlike levi-webui, which had two separately-maintained copies
+        # and a real gap in the non-streaming one) -- one fix, both paths.
+        self.script = [lambda m: [Chunk("Fine first answer."), Chunk(done=True)]]
+        self.chat("hi")
+        synonyms = ("loop spin twirl rotate orbit circle cycle swirl whirl gyrate pivot revolve " * 15)
+        self.assertGreater(len(synonyms), api_mod.NOPUNCT_RUN_MAX)
+        self.script = [lambda m: [Chunk(synonyms), Chunk(done=True)]]
+        s, r = self.c.json("POST", f"/api/conversations/{self.cid}/regenerate", {})
+        self.assertEqual(s, 200)
+        self.assertNotIn("loop spin twirl", r["reply"])
+        self.assertIn("degenerated", r["reply"])
 
 
 if __name__ == "__main__":
