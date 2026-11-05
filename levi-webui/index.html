@@ -26,7 +26,7 @@
    separately-parked white/green graph-paper plan, real subtle grid
    texture added) -> Graphpaper (same-day refinement) -> **Martin**
    (Devin's final call, explicit override of his own earlier stated
-   "a related company" collision concern -- flagged, confirmed twice
+   "Martin Construction" collision concern -- flagged, confirmed twice
    anyway). Grid texture kept as a visual feature independent of the
    name, see [data-theme="martin-*"] rules below.
 
@@ -992,11 +992,11 @@ body.bg-grid-on:not([data-theme^="martin"]) .chat::before{
 #settingsOverlay .sx-shell{ width:100%; height:100%; max-width:none; border:none; border-radius:0; }
 .sx-nav{width:210px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);padding:16px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
 .sx-title{font-size:.95rem;font-weight:700;padding:2px 10px 12px;}
-.sx-nav-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);padding:14px 10px 4px;}
-.sx-nav-label:first-of-type{padding-top:2px;}
-.sx-nav a{display:block;padding:8px 10px;border-radius:7px;font-size:.84rem;color:var(--ink-soft);cursor:pointer;}
+.sx-nav-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);padding:26px 10px 8px;border-top:1px solid var(--line);margin-top:4px;}
+.sx-nav-label:first-of-type{padding-top:2px;border-top:none;margin-top:0;}
+.sx-nav a{display:block;padding:10px 10px;border-radius:7px;font-size:.84rem;color:var(--ink-soft);cursor:pointer;}
 .sx-nav a:hover{background:var(--bg-3);color:var(--ink);}
-.sx-nav a.on{background:var(--bg-3);color:var(--ink);font-weight:600;box-shadow:inset 3px 0 0 var(--moss-solid);}
+.sx-nav a.on{background:var(--bg-3);color:var(--ink);box-shadow:inset 3px 0 0 var(--moss-solid);}
 .sx-nav .sx-gap{flex:1;}
 .sx-close{margin-top:8px;width:100%;padding:.5rem;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;font-size:.82rem;}
 .sx-content{flex:1;min-width:0;overflow-y:auto;padding:24px 30px;}
@@ -1009,10 +1009,10 @@ body.sx-center .sx-content > .sx-panel{max-width:760px;margin-left:auto;margin-r
    specificity regardless of source order, so this always wins. */
 body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-right:0;}
 .sx-panel{display:none;}.sx-panel.on{display:block;}
-.sx-panel h2{margin:0 0 4px;font-size:1.2rem;}
+.sx-panel h2{margin:0 0 4px;font-size:1.2rem;font-weight:700;}
 .sx-sub{color:var(--ink-faint);font-size:.8rem;margin:0 0 18px;}
 .sx-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:14px;}
-.sx-card h4{margin:0 0 8px;font-size:.84rem;color:var(--ink);}
+.sx-card h4{margin:0 0 8px;font-size:.84rem;font-weight:700;color:var(--ink);}
 .sx-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:9px 0;border-bottom:1px solid var(--line);}
 .sx-row:last-child{border-bottom:none;}
 .sx-row .l{font-size:.85rem;}.sx-row .d{font-size:.75rem;color:var(--ink-faint);margin-top:2px;}
@@ -1082,7 +1082,7 @@ body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-
 .pp-drawer h4{margin:0 26px 8px 0;font-size:.92rem;word-break:break-word;}
 .pp-drawer-close{position:absolute;top:14px;right:16px;font-size:1.3rem;line-height:1;color:var(--ink-faint);cursor:pointer;padding:2px 6px;border-radius:4px;}
 .pp-drawer-close:hover{color:var(--ink);background:var(--bg-2);}
-.sx-lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);margin:10px 0 5px;}
+.sx-lbl{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin:10px 0 5px;}
 .sx-tool{display:flex;justify-content:space-between;font-size:.82rem;padding:6px 0;border-bottom:1px solid var(--line);}
 .sx-tool:last-child{border-bottom:none;}
 .sx-cats{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
@@ -1797,12 +1797,12 @@ async function readAndUploadFiles(projId, fileList) {
   // PDF/DOCX/XLSX/PPTX/DOC/XLS/PPT read as raw binary -> base64, sent as
   // content_b64 for real server-side text extraction (pdftotext/zip+XML/
   // LibreOffice, see server.py's DOC_EXTRACT_EXTS comment for the full
-  // story) -- 2026-10-08 fix for a real pilot user hitting
+  // story) -- 2026-10-08 fix for a real pilot user (Emma) hitting
   // "nothing uploadable in that pick" trying to upload a document for
   // comparison. File.text() can only ever produce garbage from a binary
   // format; this routes those specific extensions around the NUL-byte
   // binary filter entirely instead of trying to make that filter
-  // smarter. Extended 2026-10-12 ("major filetype support") after a real
+  // smarter. Extended 2026-10-12 ("major filetype support") after Emma's
   // OWN follow-up case -- emails.xlsx silently failed because .xlsx was
   // never in this list, confirmed in her real conversation log.
   const DOC_EXTRACT_EXTS = ['.pdf', '.docx', '.xlsx', '.pptx', '.doc', '.xls', '.ppt'];
@@ -2460,7 +2460,7 @@ function formatMsgTs(ts) {
   // seconds float (time.time(), always UTC under the hood, no timezone
   // baked in) -- converting it here, client-side, via the Date object's
   // own real local-timezone rendering is the only honest way to match
-  // "whatever timezone the browser is actually in" for every user,
+  // "whatever timezone the browser is actually in" for Devin, Emma,
   // Jake, or anyone else on this pilot, each possibly in a different
   // zone, without this server ever having to guess or be told one.
   const d = new Date(ts * 1000);
@@ -3183,7 +3183,7 @@ async function attachFilesToChat(fileList) {
     }
   }
 
-  // Real fix, 2026-10-08 (bug found live: a pilot user attached
+  // Real fix, 2026-10-08 (bug found live: a pilot user -- Emma -- attached
   // files to an ALREADY-OPEN chat; the project got created and files
   // genuinely uploaded, but this conversation's own project_id was never
   // updated, so the model had no idea a project was linked at all --
@@ -4236,6 +4236,7 @@ setInterval(() => {
 
       <div class="sx-panel" id="sx-changelog">
         <h2>Changelog</h2><div class="sx-sub">What's changing in Leviathan / Jabber.</div>
+        <div class="sx-note" style="margin:-10px 0 14px"><a href="https://github.com/devinscodex/jabber/tree/leviathan" target="_blank" rel="noopener">Open source on GitHub</a></div>
         <div class="sx-about">
           <div class="sx-about-label">What is Jabber?</div>
           <div style="white-space:pre-wrap">Jabber is Org's own framework for running local AI models through a web interface. It connects to models hosted on our own Leviathan server instead of a public AI service, so conversations stay on our own hardware and are never sent out to a third party. For some users, it can also connect to Sage, Wrike, and company files to help answer specific work questions.</div>
