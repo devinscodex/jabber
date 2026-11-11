@@ -6,6 +6,25 @@ and usable from any machine that runs a model server.
 Status: early. The configuration layer and built-in account system exist;
 the web server and model backends are being ported in.
 
+## Getting started
+
+    cp jabber.toml.example jabber.toml
+
+Edit `jabber.toml`: `mode = "solo"` is one person on localhost, no login
+needed. `mode = "multi"` needs a real `[auth]` provider (`local` is the
+simplest: built-in accounts, no external identity system). Point
+`[backend]` at whatever you're already running: `url = "http://127.0.0.1:11434"`
+for Ollama, or an OpenAI-compatible server (llama.cpp, vLLM, LM Studio) with
+`kind = "openai"`.
+
+Then run it:
+
+    python -m jabber.server --config jabber.toml
+
+(or set `JABBER_CONFIG` and drop the flag). First run with no accounts yet
+prints a one-line hint to create the first admin from the browser, or via
+`python -m jabber.cli add NAME --admin`.
+
 ## Design
 
 - **Modes.** `mode = "solo"` is one person on localhost with no login.
