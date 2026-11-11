@@ -262,11 +262,28 @@ def activity_trend(window_h=SCAN_WINDOW_H, buckets=24):
     Devin flagged the original message-only sparkline as "not very
     informative"; a heavy-but-infrequent conversation (e.g. a long Sage
     query session) is invisible on a pure message-count line but shows up
-    plainly once token volume is its own series."""
+    plainly once token volume is its own series.
+
+    bucket_labels added 2026-11-11 (real incident fix, gilfoyle-reviewed):
+    the frontend used to compute each bar's weekday+date label itself from
+    `new Date()` at PAGE-LOAD time -- a different clock than the one that
+    built these bucket counts (this script's own `now`, whenever cron last
+    ran). A prior evening's real activity landed in the bucket the admin
+    loaded the next morning and got labeled with that morning's date,
+    reading as "today" when it wasn't. Labels are now computed HERE, from
+    each bucket's own real end-timestamp (cutoff + (i+1)*bucket_w; the
+    last bucket's end is exactly `now`) -- same clock, same data, no
+    separate guess. Buckets stay rolling 24h windows, not recalendared to
+    midnight-aligned days (gilfoyle's call: the aggregation was never the
+    bug, only the label's clock source was)."""
     log_path = BASE / "usage_log.jsonl"
     now = time.time()
     cutoff = now - window_h * 3600
     bucket_w = (window_h * 3600) / buckets
+    bucket_labels = [
+        datetime.fromtimestamp(cutoff + (i + 1) * bucket_w).strftime("%a %-m/%-d")
+        for i in range(buckets)
+    ]
     hourly = [0] * buckets
     token_hourly = [0] * buckets
     total_messages = 0
@@ -274,6 +291,7 @@ def activity_trend(window_h=SCAN_WINDOW_H, buckets=24):
     total_tokens = 0
     if not log_path.exists():
         return {"window_hours": window_h, "buckets": hourly, "token_buckets": token_hourly,
+                "bucket_labels": bucket_labels,
                 "total_messages": 0, "total_tokens": 0, "top_user": None}
     try:
         with open(log_path, encoding="utf-8") as f:
@@ -300,6 +318,7 @@ def activity_trend(window_h=SCAN_WINDOW_H, buckets=24):
         return {"error": str(e)}
     top_user = max(tokens_by_ns.items(), key=lambda kv: kv[1])[0] if tokens_by_ns else None
     return {"window_hours": window_h, "buckets": hourly, "token_buckets": token_hourly,
+            "bucket_labels": bucket_labels,
             "total_messages": total_messages, "total_tokens": total_tokens, "top_user": top_user}
 
 

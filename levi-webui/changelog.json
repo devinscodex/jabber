@@ -1,5 +1,25 @@
 [
   {
+    "date": "2026-11-11",
+    "title": "Sidebar: Chats section below Projects",
+    "body": "The old \"History\" section is now called \"Chats\" and sits right under your projects, with its own collapse arrow just like Projects."
+  },
+  {
+    "date": "2026-11-11",
+    "title": "Fixed sidebar search",
+    "body": "Search was silently failing to show results if the Chats section was collapsed, and only searched within whichever project you had open. Search now always shows its results and looks across everything."
+  },
+  {
+    "date": "2026-11-11",
+    "title": "Sources panel now grouped by search",
+    "body": "The right-hand sources panel now groups results by which search they came from, matching how they're already grouped above the chat, instead of one long mixed list."
+  },
+  {
+    "date": "2026-11-11",
+    "title": "No more delay after a quiet period",
+    "body": "The model now stays loaded and ready instead of unloading after a few minutes of inactivity, so your first message after a break shouldn't have to wait for it to reload."
+  },
+  {
     "date": "2026-11-04",
     "title": "Settings page cleanup",
     "body": "Settings sections now have clearer visual separation. Removed Behavior and Conversation Data; Feedback is hidden until it's fully tested. Usage is now \"Your usage\", with real calendar dates instead of day names. Project icons now use a transparent background instead of a color swatch."

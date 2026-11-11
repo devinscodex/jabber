@@ -314,7 +314,6 @@ body.dash-collapsed .dash{ padding:0; overflow:hidden; border:none; }
 .proj .projtitle{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
 .proj .projfolder{ font-size:.68rem; color: var(--ink-faint); cursor:pointer; flex:none; }
 .proj .projfolder:hover{ color: var(--moss-solid); }
-.proj-all .proj-icon{ color: var(--ink-faint); }
 .proj .projsettingsbtn{
   opacity:0; flex-shrink:0; border:none; background:transparent; color: var(--ink-faint);
   cursor:pointer; font-size:.78rem; padding:2px 5px; border-radius:4px;
@@ -1093,6 +1092,7 @@ body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-
 .adm-dot.ok{background:#5fb76b;}
 .adm-dot.warn{background:#e0b84a;}
 .adm-dot.bad{background:#e07a5f;}
+.adm-dot.idle{background:var(--ink-faint);}
 .adm-group-th{text-align:center;background:var(--bg-2);color:var(--ink-faint);font-size:.66rem;}
 .adm-ns-cell{font-family:ui-monospace,Menlo,Consolas,monospace;}
 .adm-num{text-align:center;}
@@ -1119,6 +1119,66 @@ body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-
 .sx-chart::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;background:repeating-linear-gradient(to top,transparent 0,transparent calc(25% - 1px),var(--line) calc(25% - 1px),var(--line) 25%);}
 .sx-chart .c{z-index:1;}
 .sx-chart .b{background:linear-gradient(to top,var(--moss-solid),color-mix(in srgb,var(--moss-solid) 55%,var(--bg)));}
+@media(max-width:760px){
+.sx-shell{width:100vw;max-width:100vw;border-radius:0;border-left:none;border-right:none}
+.sx-shell{height:100vh;height:100dvh;max-height:none}
+.sx-nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:6px 8px;gap:4px;-webkit-overflow-scrolling:touch;flex:none}
+.sx-nav-label{display:none}
+.sx-nav a{white-space:nowrap;padding:10px 14px;min-height:40px;box-sizing:border-box;flex:none}
+.sx-nav a.on{box-shadow:inset 0 -3px 0 var(--moss-solid)}
+.sx-content{padding:14px 12px;flex:1 1 0;min-height:0;overflow-x:hidden}
+.sx-card{padding:12px}
+.sx-stats{gap:14px}
+.sx-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sx-table td:nth-child(2){min-width:0}
+.adm-action-cell{width:auto}
+#sxPeopleBody .sx-table{overflow:visible}
+#sxPeopleBody .sx-table thead{display:none}
+#sxPeopleBody .sx-table tbody{display:block}
+#sxPeopleBody .sx-table tr{display:grid;grid-template-columns:18px 1fr;column-gap:8px;row-gap:3px;padding:12px 4px;border-bottom:1px solid var(--line)}
+#sxPeopleBody .sx-table td{display:block;padding:0;border:none;min-width:0}
+#sxPeopleBody .sx-table td:nth-child(1){grid-column:1;grid-row:1;padding-top:4px}
+#sxPeopleBody .sx-table td:nth-child(2){grid-column:2;grid-row:1;word-break:break-word}
+#sxPeopleBody .sx-table td:nth-child(3){grid-column:2}
+#sxPeopleBody .sx-table td:nth-child(4){grid-column:2;color:var(--ink-faint);font-size:.74rem}
+#sxPeopleBody .sx-table td:nth-child(4)::before{content:"Last active: "}
+.sx-tab{padding:9px 14px;font-size:.82rem;min-height:40px;box-sizing:border-box}
+.sx-btn{min-height:40px}
+.sx-shell input[type=checkbox]{width:22px;height:22px}
+.sx-chip{padding:4px 11px}
+.pp-drawer{width:100%;max-width:100%;border-left:none;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.pp-drawer-close{font-size:2rem;padding:4px 16px;top:6px;right:4px}
+}
+.activity-line.warn{color:#e0b84a;}
+.src-list{margin:1px 0 5px 14px;font-style:normal;white-space:normal;}
+.src-item{padding:1px 0;font-size:.78rem;line-height:1.4;}
+.src-item a,.src-row a{color:var(--moss-solid);text-decoration:none;word-break:break-word;}
+.src-item a:hover,.src-item a:focus,.src-row a:hover,.src-row a:focus{text-decoration:underline;}
+.src-n,.src-dom{color:var(--ink-faint);}
+.search-notice{font-size:.8rem;color:#e0b84a;border-left:3px solid #e0b84a;padding:2px 0 2px 9px;margin:0 0 7px;}
+.src-chip{font:inherit;font-size:.76rem;color:var(--ink-soft);background:var(--bg-2);border:1px solid var(--line);border-radius:999px;padding:3px 12px;margin-top:8px;cursor:pointer;}
+.src-chip:hover,.src-chip:focus{border-color:var(--moss-solid);color:var(--ink);}
+sup.cite{font-size:.68em;line-height:0;margin:0 1px;}
+sup.cite a{color:var(--moss-solid);text-decoration:none;font-weight:700;}
+sup.cite a:hover{text-decoration:underline;}
+.src-panel{position:fixed;top:0;right:0;height:100%;width:340px;max-width:100%;background:var(--card);border-left:1px solid var(--line);box-shadow:-10px 0 28px rgba(0,0,0,.4);z-index:70;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .18s ease;visibility:hidden;color:var(--ink);}
+.src-panel.open{transform:none;visibility:visible;}
+.src-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700;font-size:.9rem;}
+.src-close{font:inherit;font-size:1.5rem;line-height:1;background:none;border:none;color:var(--ink-faint);cursor:pointer;padding:2px 10px;}
+.src-close:hover,.src-close:focus{color:var(--ink);}
+.src-body{flex:1;overflow-y:auto;padding:6px 16px;}
+.src-group-header:first-child{margin-top:0;}
+.src-row{padding:10px 8px;border-bottom:1px solid var(--line);font-size:.84rem;border-radius:6px;}
+.src-row.hi{background:var(--bg-2);}
+.src-row-title{font-weight:600;}
+.src-snip{color:var(--ink-soft);font-size:.78rem;margin-top:3px;line-height:1.4;}
+.src-foot{padding:9px 16px calc(9px + env(safe-area-inset-bottom));border-top:1px solid var(--line);font-size:.7rem;color:var(--ink-faint);}
+@media(max-width:760px){
+.src-panel{top:auto;bottom:0;height:auto;max-height:72vh;width:100%;border-left:none;border-top:1px solid var(--line);border-radius:14px 14px 0 0;transform:translateY(100%);box-shadow:0 -10px 28px rgba(0,0,0,.4);}
+.src-chip{min-height:40px;padding:6px 16px;}
+.src-close{min-width:44px;min-height:44px;}
+sup.cite a{padding:4px 3px;}
+}
 </style>
 </head>
 <body data-theme="slate-dark">
@@ -1194,8 +1254,15 @@ body.sx-center .sx-content > #sx-adminpanel{max-width:none;margin-left:0;margin-
     </div>
     <div id="projList" class="sidebar-section-body"></div>
 
-    <div class="sidebar-section-header" id="historyHeader" onclick="toggleSidebarSection('history')">
-      <span class="label"><span class="chev">▾</span> History</span>
+    <!-- 2026-11-11, Devin: no separate "All conversations" control and
+         no renamed "History" section -- plain "Chats" label instead,
+         directly under the Projects section's own chats for relativity
+         (Grok's own sidebar shape: Projects, then Chats below, no
+         in-between control). Devin asked right after shipping the
+         always-expanded version to bring back a collapse chevron here
+         too, same pattern as Projects -- toggleSidebarSection('chats'). -->
+    <div class="sidebar-section-header" id="chatsHeader" onclick="toggleSidebarSection('chats')" style="margin-top:14px">
+      <span class="label"><span class="chev">▾</span> Chats</span>
     </div>
     <div id="convList" class="sidebar-section-body"></div>
   </div>
@@ -1536,15 +1603,11 @@ async function saveProjectIcon() {
 // THIS tab), same category as scroll position, not a real preference
 // worth round-tripping through localStorage or the server.
 let expandedProjects = {};   // projId -> bool, chevron-expanded
-let projectShowMore = {};    // projId -> bool, "More" already clicked
+let projectShowMore = {};    // projId -> bool, "More" clicked (3 -> 13)
+let projectShowAll = {};     // projId -> bool, "See all" clicked (13 -> every chat in this project, inline)
 
 function renderProjList() {
   projListEl.innerHTML = '';
-  const allItem = document.createElement('div');
-  allItem.className = 'proj proj-all' + (currentProjectId === null ? ' active' : '');
-  allItem.innerHTML = `<span class="proj-icon">*</span><span class="projtitle">All conversations</span>`;
-  allItem.addEventListener('click', () => { currentProjectId = null; renderProjList(); renderConvList(); });
-  projListEl.appendChild(allItem);
   allProjects.forEach((p) => {
     const wrap = document.createElement('div');
     wrap.className = 'proj-wrap';
@@ -1611,7 +1674,16 @@ function renderProjList() {
     // separate controls and must not also trigger this.
     row.addEventListener('click', (e) => {
       if (e.target.closest('.proj-chevron') || e.target.closest('.rowmenubtn')) return;
-      currentProjectId = p.id; renderProjList(); renderConvList();
+      // 2026-11-11, Devin: clicking the row now toggles its own inline
+      // expand directly (same effect as the chevron -- kept as a second,
+      // explicit target below) rather than also scoping the separate
+      // Chats list, which no longer filters by project at all. Still
+      // sets currentProjectId so "New chat"/file-attach keep scoping to
+      // the selected project -- that behavior is unrelated to the list
+      // display and Devin didn't ask to change it.
+      currentProjectId = p.id;
+      expandedProjects[p.id] = !expandedProjects[p.id];
+      renderProjList();
     });
     wrap.appendChild(row);
 
@@ -1624,9 +1696,11 @@ function renderProjList() {
 
 // Progressive disclosure under an expanded project (2026-10-26 redesign,
 // Grok reference): 3 chats shown by default, "More" reveals up to 13
-// total, "See all" beyond that hands off to the existing History
-// section (already filterable by this same project + the existing
-// search box) rather than building a second, parallel full-list view.
+// total, "See all" beyond that reveals every chat in this project
+// INLINE (2026-11-11, Devin: no more hand-off to a separate History
+// section -- that section doesn't exist anymore, and the flat Chats list
+// below no longer filters by project at all, so there's nothing for a
+// hand-off to scroll to).
 function renderProjChildren(p) {
   const children = document.createElement('div');
   children.className = 'proj-children';
@@ -1638,8 +1712,9 @@ function renderProjChildren(p) {
     children.appendChild(empty);
     return children;
   }
-  const showMore = !!projectShowMore[p.id];
-  const limit = showMore ? 13 : 3;
+  const showAll = !!projectShowAll[p.id];
+  const showMore = showAll || !!projectShowMore[p.id];
+  const limit = showAll ? projConvs.length : (showMore ? 13 : 3);
   projConvs.slice(0, limit).forEach(c => children.appendChild(buildConvRow(c, { compact: true })));
   if (projConvs.length > 3 && !showMore) {
     const more = document.createElement('div');
@@ -1652,19 +1727,14 @@ function renderProjChildren(p) {
     });
     children.appendChild(more);
   }
-  if (projConvs.length > 13) {
+  if (projConvs.length > 13 && !showAll) {
     const seeAll = document.createElement('div');
     seeAll.className = 'proj-more';
     seeAll.textContent = `See all ${projConvs.length} \u2192`;
     seeAll.addEventListener('click', (e) => {
       e.stopPropagation();
-      currentProjectId = p.id;
+      projectShowAll[p.id] = true;
       renderProjList();
-      renderConvList();
-      const historyHeader = document.getElementById('historyHeader');
-      if (historyHeader.classList.contains('collapsed')) toggleSidebarSection('history');
-      convListEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      searchBox.focus();
     });
     children.appendChild(seeAll);
   }
@@ -2367,7 +2437,13 @@ function describeToolCall(call) {
   if (name === 'web_search') {
     const n = Array.isArray(out.results) ? out.results.length : null;
     const q = args.query ? `"${args.query}"` : '';
-    return `Searched the web for ${q}` + (n != null ? ` — ${n} result${n === 1 ? '' : 's'}` : '');
+    if (out.restricted) return 'Search not sent: the query held a restricted term';
+    if (out.blocked) return `Search blocked, no results ${q}`.trim();
+    if (out.error) return `Search failed ${q}`.trim();
+    let s = `Searched the web for ${q}` + (n != null ? ` — ${n} result${n === 1 ? '' : 's'}` : '');
+    if (out.engine === 'bing') s += ' (DuckDuckGo blocked, used Bing)';
+    else if (out.query_used && args.query && out.query_used !== args.query) s += ' (query simplified)';
+    return s;
   }
   if (name.startsWith('sage_')) {
     if (name === 'sage_run_query') return 'Queried the ERP system';
@@ -2398,13 +2474,231 @@ function buildActivityBlock(toolCalls, label) {
   const body = wrap.querySelector('.thinking-body');
   body.innerHTML = '';
   (toolCalls || []).forEach(call => {
-    const line = document.createElement('div');
-    line.className = 'activity-line';
-    line.textContent = describeToolCall(call);
-    body.appendChild(line);
+    activityNodes(call).forEach(nd => body.appendChild(nd));
   });
   return wrap;
 }
+
+// ---- web sources BEGIN ----
+// Search results are untrusted third-party text. Everything below writes
+// them with textContent / setAttribute on freshly created nodes, never
+// innerHTML, and only http(s) URLs become links. The shown domain is
+// parsed from the URL, not taken from the server or the page title.
+function safeHttpUrl(u) {
+  try {
+    const x = new URL(String(u));
+    return (x.protocol === 'https:' || x.protocol === 'http:') ? x : null;
+  } catch (e) { return null; }
+}
+
+function collectSources(toolCalls) {
+  const byN = new Map(), list = [];
+  let blocked = false, lowRel = false;
+  (toolCalls || []).forEach(c => {
+    if (!c || c.name !== 'web_search') return;
+    const out = c.output || {};
+    if (out.blocked) blocked = true;
+    if (out.low_relevance) lowRel = true;
+    (Array.isArray(out.results) ? out.results : []).forEach(r => {
+      const x = safeHttpUrl(r && r.url);
+      const n = Number(r && r.n);
+      if (!x || !Number.isInteger(n) || n < 1 || byN.has(n)) return;
+      const s = {
+        n, url: x.href, domain: x.hostname.replace(/^www\./, ''),
+        title: String(r.title || x.hostname).slice(0, 200),
+        snippet: String(r.snippet || '').slice(0, 300),
+      };
+      byN.set(n, s);
+      list.push(s);
+    });
+  });
+  list.sort((a, b) => a.n - b.n);
+  return { byN, list, blocked, lowRel };
+}
+
+// 2026-11-11, Devin: right-side sources panel should group results per
+// search call (the same "Searched the web for X -- N results" grouping
+// already used in the "Worked" activity trace above the chat, via
+// describeToolCall), not one flat merged list like collectSources above.
+// Same per-result validation (safeHttpUrl, integer n) as collectSources,
+// just kept grouped by call instead of merged/deduped across calls.
+function collectSourceGroups(toolCalls) {
+  const groups = [];
+  (toolCalls || []).forEach(c => {
+    if (!c || c.name !== 'web_search') return;
+    const out = c.output || {};
+    const results = [];
+    (Array.isArray(out.results) ? out.results : []).forEach(r => {
+      const x = safeHttpUrl(r && r.url);
+      const n = Number(r && r.n);
+      if (!x || !Number.isInteger(n) || n < 1) return;
+      results.push({
+        n, url: x.href, domain: x.hostname.replace(/^www\./, ''),
+        title: String(r.title || x.hostname).slice(0, 200),
+        snippet: String(r.snippet || '').slice(0, 300),
+      });
+    });
+    if (results.length) groups.push({ label: describeToolCall(c), results });
+  });
+  return groups;
+}
+
+function activityNodes(call) {
+  const line = document.createElement('div');
+  line.className = 'activity-line';
+  line.textContent = describeToolCall(call);
+  const nodes = [line];
+  if (call && call.name === 'web_search') {
+    const o = call.output || {};
+    if (o.blocked || o.error) line.classList.add('warn');
+    // 2026-11-11, Devin: the inline title-link list that used to render
+    // here (right under the "Searched the web for X" line) moved to the
+    // right-side sources panel instead -- see collectSourceGroups/
+    // openSources below. Keeps the activity trace as a plain description
+    // of what happened, not a second copy of the same source list.
+  }
+  return nodes;
+}
+
+let srcPanelEl = null, srcReturnFocus = null;
+
+function closeSources() {
+  if (!srcPanelEl) return;
+  srcPanelEl.classList.remove('open');
+  document.removeEventListener('keydown', srcKey);
+  document.removeEventListener('mousedown', srcOutside, true);
+  const r = srcReturnFocus; srcReturnFocus = null;
+  if (r && r.isConnected && r.focus) r.focus();
+}
+function srcKey(e) { if (e.key === 'Escape') closeSources(); }
+function srcOutside(e) {
+  if (srcPanelEl && !srcPanelEl.contains(e.target) && !(e.target.closest && e.target.closest('.src-chip, .cite-a'))) closeSources();
+}
+
+function openSources(groups, hiN, returnEl) {
+  if (!srcPanelEl) {
+    srcPanelEl = document.createElement('div');
+    srcPanelEl.className = 'src-panel';
+    srcPanelEl.setAttribute('role', 'dialog');
+    srcPanelEl.setAttribute('aria-modal', 'true');
+    srcPanelEl.setAttribute('aria-label', 'Sources');
+    document.body.appendChild(srcPanelEl);
+  }
+  srcPanelEl.textContent = '';
+  const head = document.createElement('div');
+  head.className = 'src-head';
+  const h = document.createElement('span');
+  h.textContent = 'Sources';
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'src-close'; x.setAttribute('aria-label', 'Close sources');
+  x.textContent = '×';
+  x.addEventListener('click', closeSources);
+  head.append(h, x);
+  const body = document.createElement('div');
+  body.className = 'src-body';
+  // 2026-11-11, Devin: grouped per search call now (same grouping/label
+  // as the activity trace above the chat), not one flat merged list.
+  (groups || []).forEach(g => {
+    const gHead = document.createElement('div');
+    gHead.className = 'conv-group-label src-group-header';
+    gHead.textContent = g.label;
+    body.appendChild(gHead);
+    g.results.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'src-row' + (s.n === hiN ? ' hi' : '');
+      row.id = 'src-row-' + s.n;
+      const t = document.createElement('div');
+      t.className = 'src-row-title';
+      const n = document.createElement('span');
+      n.className = 'src-n'; n.textContent = '[' + s.n + '] ';
+      const a = document.createElement('a');
+      a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = s.title;
+      t.append(n, a);
+      const d = document.createElement('div');
+      d.className = 'src-dom'; d.textContent = s.domain;
+      row.append(t, d);
+      if (s.snippet) {
+        const p = document.createElement('div');
+        p.className = 'src-snip'; p.textContent = s.snippet;
+        row.appendChild(p);
+      }
+      body.appendChild(row);
+    });
+  });
+  const note = document.createElement('div');
+  note.className = 'src-foot';
+  note.textContent = 'Links are what the search engine returned, not checked by us.';
+  srcPanelEl.append(head, body, note);
+  srcReturnFocus = returnEl || null;
+  srcPanelEl.classList.add('open');
+  document.addEventListener('keydown', srcKey);
+  document.addEventListener('mousedown', srcOutside, true);
+  x.focus();
+  const hi = hiN != null ? srcPanelEl.querySelector('#src-row-' + hiN) : null;
+  if (hi && hi.scrollIntoView) hi.scrollIntoView({ block: 'nearest' });
+}
+
+function decorateSources(msgDiv, toolCalls) {
+  if (!msgDiv || msgDiv.dataset.srcDone) return;
+  const bubble = msgDiv.querySelector('.bubble');
+  if (!bubble) return;
+  const { byN, list, blocked, lowRel } = collectSources(toolCalls);
+  // 2026-11-11, Devin: the right-side panel now shows sources grouped per
+  // search call (collectSourceGroups), same grouping as the activity
+  // trace above the chat -- collectSources above is still used as-is for
+  // the inline [n]-is-real-citation check (byN) and the chip's total
+  // count (list.length), neither of which depends on display grouping.
+  const groups = collectSourceGroups(toolCalls);
+  msgDiv.dataset.srcDone = '1';
+  const notice = (txt) => {
+    const el = document.createElement('div');
+    el.className = 'search-notice';
+    el.textContent = txt;
+    msgDiv.insertBefore(el, bubble);
+  };
+  if (blocked) notice("Web search was blocked, so this answer comes from the model's own knowledge, not fresh results.");
+  else if (lowRel) notice('Some search results looked unrelated to the question. Check the sources before relying on them.');
+  if (!list.length) return;
+  const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT, {
+    acceptNode: (t) => (t.parentElement && t.parentElement.closest('a, code, pre'))
+      ? NodeFilter.FILTER_REJECT
+      : (/\[\d{1,2}\]/.test(t.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
+  });
+  const hits = [];
+  while (walker.nextNode()) hits.push(walker.currentNode);
+  hits.forEach(tn => {
+    const frag = document.createDocumentFragment();
+    tn.nodeValue.split(/(\[\d{1,2}\])/).forEach(part => {
+      const m = /^\[(\d{1,2})\]$/.exec(part);
+      const n = m ? Number(m[1]) : null;
+      if (m && byN.has(n)) {
+        const sup = document.createElement('sup');
+        sup.className = 'cite';
+        const a = document.createElement('a');
+        a.href = '#'; a.className = 'cite-a'; a.dataset.n = String(n);
+        a.title = byN.get(n).domain; a.textContent = String(n);
+        sup.appendChild(a);
+        frag.appendChild(sup);
+      } else if (part) {
+        frag.appendChild(document.createTextNode(part));
+      }
+    });
+    tn.parentNode.replaceChild(frag, tn);
+  });
+  bubble.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a.cite-a');
+    if (!a) return;
+    e.preventDefault();
+    openSources(groups, Number(a.dataset.n), a);
+  });
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'src-chip';
+  chip.textContent = list.length + (list.length === 1 ? ' source' : ' sources');
+  chip.addEventListener('click', () => openSources(groups, null, chip));
+  bubble.after(chip);
+}
+// ---- web sources END ----
 
 function formatMsgTs(ts) {
   // Real browser-local rendering, 2026-10-12 (Devin: "i also want chats
@@ -2483,6 +2777,7 @@ function addMessage(who, role, text, model, thinking, images, ts, toolCalls) {
   if (role === 'assistant') bubble.innerHTML = renderMarkdown(text);
   else bubble.textContent = text;
   div.appendChild(bubble);
+  if (role === 'assistant' && toolCalls && toolCalls.length) decorateSources(div, toolCalls);
 
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
@@ -2672,10 +2967,12 @@ async function deleteConv(c) {
 
 function renderConvList() {
   const filter = (searchBox.value || '').toLowerCase();
-  const filtered = allConvs.filter(c =>
-    c.title.toLowerCase().includes(filter) &&
-    (currentProjectId === null || c.project_id === currentProjectId)
-  );
+  // 2026-11-11, Devin: Chats is now a permanently-flat, always-visible
+  // list (no History collapse, no project scoping -- see renderProjList's
+  // row-click comment), so this is back to a plain title filter. The
+  // earlier collapsed-section-hides-results bug can't recur: there's no
+  // collapse state left to hide behind.
+  const filtered = allConvs.filter(c => c.title.toLowerCase().includes(filter));
   convListEl.innerHTML = '';
   if (filtered.length === 0) {
     const empty = document.createElement('div');
@@ -2926,6 +3223,7 @@ async function sendMessage() {
   let thinkingEl = null, rawThinking = '', rawContent = '';
   let thinkingStartMs = null;
   let activityEl = null, activityStartMs = null;
+  const turnToolCalls = [];
   try {
     if (!currentConvId) {
       const createResp = await fetch('/api/conversations', {
@@ -3035,10 +3333,9 @@ async function sendMessage() {
             activityEl.classList.add('open'); // visible while streaming, same as thinking used to be
             pending.insertBefore(activityEl, pending.querySelector('.bubble'));
           }
-          const line = document.createElement('div');
-          line.className = 'activity-line';
-          line.textContent = describeToolCall({ name: evt.name, args: evt.args, output: evt.output });
-          activityEl.querySelector('.thinking-body').appendChild(line);
+          const liveCall = { name: evt.name, args: evt.args, output: evt.output };
+          turnToolCalls.push(liveCall);
+          activityNodes(liveCall).forEach((nd) => activityEl.querySelector('.thinking-body').appendChild(nd));
           const secs = ((performance.now() - activityStartMs) / 1000).toFixed(1);
           const labelEl = activityEl.querySelector('.thinking-label');
           if (labelEl) labelEl.textContent = `Working (${secs}s)`;
@@ -3080,6 +3377,7 @@ async function sendMessage() {
             const labelEl = activityEl.querySelector('.thinking-label');
             if (labelEl) labelEl.textContent = `Worked for ${secs}s`;
           }
+          decorateSources(pending, turnToolCalls);
           refreshConvList();
         } else if (evt.type === 'error') {
           pending.querySelector('.bubble').textContent = 'Error: ' + evt.error;
@@ -3099,7 +3397,16 @@ async function sendMessage() {
 
 newChatBtn.addEventListener('click', startNewChat);
 newProjectBtn.addEventListener('click', (e) => { e.stopPropagation(); createProject(); });
-searchBox.addEventListener('input', renderConvList);
+// 2026-11-11: Chats got its collapse chevron back (chatsHeader), which
+// reopens the exact "search isn't working" bug from earlier today --
+// renderConvList() repopulates #convList correctly even while collapsed,
+// but the collapsed section stays display:none so the matches are
+// invisible. Auto-expand on an active query, same fix shape as before,
+// just pointed at the new chatsHeader id instead of the old historyHeader.
+searchBox.addEventListener('input', () => {
+  if (searchBox.value && document.getElementById('chatsHeader').classList.contains('collapsed')) toggleSidebarSection('chats');
+  renderConvList();
+});
 
 // Real chat-level file attach, 2026-10-08 (Devin: "folder and file
 // upload for the project", surfaced where a pilot user actually looks
@@ -3485,7 +3792,13 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.add(`${panel}-collapsed`);
     }
   });
-  ['projects', 'history'].forEach(name => {
+  // 2026-11-11: 'history' stays dropped -- that section/id no longer
+  // exists at all, a stale 'cairn-section-history-collapsed' value from
+  // before this change is simply ignored. 'chats' uses its own key
+  // ('cairn-section-chats-collapsed', new name, new chevron) rather than
+  // inheriting history's old stored value -- not the same stored
+  // preference, don't carry it over.
+  ['projects', 'chats'].forEach(name => {
     if (localStorage.getItem(`cairn-section-${name}-collapsed`) === '1') {
       toggleSidebarSection(name);
     }
@@ -3516,12 +3829,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Collapsible Projects/History sections within the sidebar (2026-08-17,
-// Grok-sidebar pass) -- distinct from togglePanel below, which
-// collapses the WHOLE sidebar/dash column. Same localStorage-persistence
-// pattern.
+// Collapsible Projects/Chats sections within the sidebar (2026-08-17,
+// Grok-sidebar pass) -- distinct from togglePanel below, which collapses
+// the WHOLE sidebar/dash column. 'history' briefly dropped out of this
+// (2026-11-11) when that section was made permanently flat, then Devin
+// asked right after for the same collapse chevron back on the renamed
+// "Chats" section -- generalized back to a name->element lookup.
 function toggleSidebarSection(name) {
-  const header = document.getElementById(name === 'projects' ? 'projectsHeader' : 'historyHeader');
+  const header = document.getElementById(name === 'projects' ? 'projectsHeader' : 'chatsHeader');
   const body = name === 'projects' ? projListEl : convListEl;
   const collapsed = header.classList.toggle('collapsed');
   body.classList.toggle('collapsed', collapsed);
@@ -4234,6 +4549,7 @@ setInterval(() => {
           <div class="adm-card" style="flex:1;min-width:280px">
             <div class="adm-card-label">7-Day Activity Trend (real, from usage_log.jsonl)</div>
             <div id="admTrendChart"></div>
+            <div class="adm-cards" id="admTrendTiles" style="margin:10px 0 0"></div>
           </div>
         </div>
 
@@ -4645,6 +4961,16 @@ setInterval(() => {
     }
   }
   $('admRefreshBtn').addEventListener('click', loadAdminAll);
+  // 2026-11-11, mockup signed off: chart now measures its real container
+  // width at render time (see renderTrendChart), so it needs a re-render
+  // on resize to stay filled instead of keeping whatever width it had
+  // the moment the panel first loaded. Debounced -- resize fires many
+  // times per drag.
+  let admTrendResizeT;
+  window.addEventListener('resize', () => {
+    clearTimeout(admTrendResizeT);
+    admTrendResizeT = setTimeout(() => { if (admSnap) renderTrendChart(); }, 120);
+  });
 
   function admCard(label, value, detail, dot) {
     return '<div class="adm-card"><div class="adm-card-label">' + (dot ? '<span class="adm-dot ' + dot + '"></span>' : '') + esc(label) + '</div>'
@@ -4664,13 +4990,22 @@ setInterval(() => {
     // ol.models is the real list from Ollama's own /api/ps; fall back to
     // the old singular shape only if a stale snapshot predates this field.
     const models = ol.models || (ol.loaded ? [{ name: ol.name, cpu_fallback: ol.cpu_fallback, size_vram: ol.size_vram }] : []);
-    const modelValue = !ol.loaded ? 'not loaded' : models.length === 1 ? (models[0].name || 'loaded') : models.length + ' models loaded';
-    const modelDetail = !ol.loaded ? '' : models.map((m) => (m.name || '?') + (m.cpu_fallback ? ' (CPU fallback)' : '')).join(', ');
-    const modelWarn = !ol.loaded || models.some((m) => m.cpu_fallback);
+    // 2026-11-11, Devin: server.py now sets keep_alive:-1 on every Ollama
+    // call, so the model stays resident instead of Ollama's default 5-min
+    // idle-unload -- "not loaded" should now only happen right after a
+    // service/Ollama restart, before the first chat. That's still a real,
+    // momentary, harmless state though, not a failure -- distinguish it
+    // from an ACTUAL problem (ol.error: the /api/ps call itself failed,
+    // Ollama unreachable) rather than collapsing both into the same scary
+    // "warn" yellow dot like before. Idle gets its own neutral/faint dot.
+    const modelValue = ol.error ? 'unreachable' : !ol.loaded ? 'idle' : models.length === 1 ? (models[0].name || 'loaded') : models.length + ' models loaded';
+    const modelDetail = ol.error ? ol.error : !ol.loaded ? 'no model resident right now -- loads fresh on next message' : models.map((m) => (m.name || '?') + (m.cpu_fallback ? ' (CPU fallback)' : '')).join(', ');
+    const modelWarn = models.some((m) => m.cpu_fallback);
+    const modelDot = ol.error ? 'bad' : !ol.loaded ? 'idle' : (modelWarn ? 'warn' : 'ok');
     el.innerHTML = [
       admCard('Service', svcOk ? 'active' : (svc.active_state || 'unknown'), uptimeMin != null ? ('uptime ' + fmt(uptimeMin) + ' min · pid ' + svc.main_pid) : '', svcOk ? 'ok' : 'bad'),
       admCard('GPU', gpuOk ? gpu.utilization_pct + '% util' : 'unknown', gpuOk ? (gpu.power_draw_w + 'W / ' + gpu.power_limit_w + 'W · VRAM ' + Math.round(100 * gpu.memory_used_mib / gpu.memory_total_mib) + '%') : (gpu.error || ''), gpuOk ? 'ok' : 'warn'),
-      admCard('Model' + (models.length > 1 ? 's' : ''), modelValue, modelDetail, ol.loaded ? (modelWarn ? 'warn' : 'ok') : 'warn'),
+      admCard('Model' + (models.length > 1 ? 's' : ''), modelValue, modelDetail, modelDot),
       admCard('Conversation Health (' + ((admSnap.conversation_health || {}).window_hours || 24) + 'h)', flaggedN + ' flagged', Object.entries(ch).map(([k, v]) => k + '=' + v).join(' '), flaggedN > 0 ? 'warn' : 'ok'),
     ].join('');
   }
@@ -4689,16 +5024,32 @@ setInterval(() => {
     if (!t || !t.buckets || !t.buckets.length) { el.innerHTML = '<div class="adm-muted">no trend data yet</div>'; return; }
     const messages = t.buckets, tokens = (t.token_buckets || messages.map(() => 0)).map((v) => v / 1000);
     const n = messages.length;
-    const today = new Date();
-    const days = messages.map((_, i) => {
-      const d = new Date(today); d.setDate(d.getDate() - (n - 1 - i));
+    // 2026-11-11 fix (real incident): labels used to be computed HERE from
+    // the browser's own `new Date()` at page-load time -- a different
+    // clock than health_snapshot.py's own `now` that built the bucket
+    // counts. A prior evening's real activity landed in the newest bucket
+    // and got labeled with whatever date the admin happened to load the
+    // page, reading as "today" a day late. The backend now computes each
+    // bucket's label from its own real end-timestamp (same clock as the
+    // data) and ships it as t.bucket_labels -- use that directly. Fallback
+    // below only covers a snapshot written by the pre-fix cron run before
+    // this deploy (bucket_labels missing entirely), not an ongoing case.
+    const days = (t.bucket_labels && t.bucket_labels.length === n) ? t.bucket_labels : messages.map((_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (n - 1 - i));
       return d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
     });
-    const W = 460, H = 150, padL = 34, padR = 40, padT = 10, padB = 24;
+    // 2026-11-11 redesign (mockup signed off): W used to be a hardcoded
+    // 460 -- with viewBox narrower than the real card, the SVG's default
+    // preserveAspectRatio("xMidYMid meet") letterboxes it centered, which
+    // is exactly the "more empty whitespace than the chart uses" Devin
+    // flagged. Measuring the card's real width means the viewBox IS the
+    // pixel container, nothing left to letterbox.
+    const W = Math.max(460, Math.round(el.clientWidth || 460));
+    const H = 190, padL = 38, padR = 46, padT = 12, padB = 26;
     const innerW = W - padL - padR, innerH = H - padT - padB;
     const maxMsg = Math.max(1, Math.ceil(Math.max(...messages) / 20) * 20);
     const maxTok = Math.max(1, Math.ceil(Math.max(...tokens) / 50) * 50);
-    const slot = innerW / n, barW = slot * 0.46;
+    const slot = innerW / n, barW = Math.min(64, slot * 0.46);
     const xCenter = (i) => padL + slot * i + slot / 2;
     const yMsg = (v) => padT + innerH - (v / maxMsg) * innerH;
     const yTok = (v) => padT + innerH - (v / maxTok) * innerH;
@@ -4707,28 +5058,38 @@ setInterval(() => {
     [0, 0.5, 1].forEach((f) => {
       const y = padT + innerH * (1 - f);
       svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="var(--line)" stroke-width="0.5"/>';
-      svg += '<text x="' + (padL - 6) + '" y="' + (y + 3) + '" font-size="9" fill="var(--ink-faint)" text-anchor="end">' + Math.round(maxMsg * f) + '</text>';
-      svg += '<text x="' + (W - padR + 6) + '" y="' + (y + 3) + '" font-size="9" fill="var(--ink-faint)">' + Math.round(maxTok * f) + 'k</text>';
+      svg += '<text x="' + (padL - 6) + '" y="' + (y + 3) + '" font-size="10" fill="var(--ink-faint)" text-anchor="end">' + Math.round(maxMsg * f) + '</text>';
+      svg += '<text x="' + (W - padR + 6) + '" y="' + (y + 3) + '" font-size="10" fill="var(--ink-faint)">' + Math.round(maxTok * f) + 'k</text>';
     });
     messages.forEach((v, i) => {
       const x = xCenter(i) - barW / 2, y = yMsg(v), h = (padT + innerH) - y;
-      svg += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" rx="2" fill="var(--moss-solid)"><title>' + days[i] + ': ' + v + ' messages</title></rect>';
+      svg += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" rx="3" fill="var(--moss-solid)"><title>' + days[i] + ': ' + v + ' messages</title></rect>';
     });
     const pts = tokens.map((v, i) => xCenter(i) + ',' + yTok(v));
-    svg += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="var(--ink-faint)" stroke-width="1.75" stroke-dasharray="4,3"/>';
+    svg += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="var(--ink-faint)" stroke-width="2" stroke-dasharray="4,3"/>';
     tokens.forEach((v, i) => {
-      svg += '<circle cx="' + xCenter(i) + '" cy="' + yTok(v) + '" r="2.6" fill="var(--bg)" stroke="var(--ink-faint)" stroke-width="1.5"><title>' + days[i] + ': ' + fmt(v * 1000) + ' tokens</title></circle>';
+      svg += '<circle cx="' + xCenter(i) + '" cy="' + yTok(v) + '" r="3" fill="var(--bg)" stroke="var(--ink-faint)" stroke-width="1.75"><title>' + days[i] + ': ' + fmt(v * 1000) + ' tokens</title></circle>';
     });
     days.forEach((d, i) => {
-      svg += '<text x="' + xCenter(i) + '" y="' + (H - 4) + '" font-size="9.5" fill="var(--ink-soft)" text-anchor="middle">' + d + '</text>';
+      svg += '<text x="' + xCenter(i) + '" y="' + (H - 4) + '" font-size="11" fill="var(--ink-soft)" text-anchor="middle">' + d + '</text>';
     });
     svg += '</svg>';
-    const busiestI = messages.indexOf(Math.max(...messages));
-    svg += '<div class="adm-card-detail" style="margin-top:4px">' +
-      '<span style="color:var(--moss-solid)">&#9608;</span> Messages (' + t.total_messages + ' total) &nbsp;&nbsp; ' +
-      '<span style="color:var(--ink-faint)">&#9478;&#9675;</span> Tokens, thousands (' + fmt(t.total_tokens) + ' total) &middot; busiest day: ' + days[busiestI] +
-      (t.top_user ? ' &middot; busiest user: ' + esc(who(t.top_user)) : '') + '</div>';
     el.innerHTML = svg;
+
+    // 2026-11-11 redesign (mockup signed off): one-line caption replaced
+    // with a stat-tile row, reusing the SAME admCard() tile component as
+    // the Service/GPU/Model/Health row above -- not a new visual
+    // language, the same one used again.
+    const busiestI = messages.indexOf(Math.max(...messages));
+    const tilesEl = $('admTrendTiles');
+    if (tilesEl) {
+      tilesEl.innerHTML = [
+        admCard('Messages', fmt(t.total_messages), '7-day total'),
+        admCard('Tokens', fmt(t.total_tokens), '7-day total'),
+        admCard('Busiest Day', days[busiestI], messages[busiestI] + ' messages'),
+        t.top_user ? admCard('Busiest User', who(t.top_user), t.top_user) : '',
+      ].join('');
+    }
   }
 
   function renderAudit() {

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jabber Admin</title>
 <style>
   :root { color-scheme: dark; }
@@ -62,6 +63,15 @@
     padding: 0.25rem 0.4rem; font-size: 0.78rem; cursor: pointer; max-width: 170px;
   }
   select.group-apply:disabled { cursor: wait; opacity: 0.5; }
+@media (max-width: 760px) {
+    body { padding: 1rem 0.75rem; }
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .card { min-width: 140px; }
+    .cards { gap: 0.6rem; }
+    .toast { left: 0.75rem; right: 0.75rem; bottom: 0.75rem; }
+    #refresh-btn, select.group-apply { min-height: 40px; }
+    input[type=checkbox] { width: 1.4rem; height: 1.4rem; }
+  }
 </style>
 </head>
 <body>
