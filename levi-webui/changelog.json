@@ -1,5 +1,35 @@
 [
   {
+    "date": "2026-11-19",
+    "title": "Generate and edit images right in chat",
+    "body": "Ask for an image and it'll actually generate one, or paste/upload a photo and ask for changes -- recolor, add or remove something, restyle it. Works for pilot accounts."
+  },
+  {
+    "date": "2026-11-19",
+    "title": "Ask for a QR code",
+    "body": "Just ask -- QR codes are generated directly, not through the image model, so they're always scannable."
+  },
+  {
+    "date": "2026-11-19",
+    "title": "Generated files and documents now stick around",
+    "body": "Images, spreadsheets, documents, and presentations you generate no longer disappear after 48 hours. They're kept in your own personal library with no size limit for now."
+  },
+  {
+    "date": "2026-11-19",
+    "title": "Fixed image generation sometimes failing for two people at once",
+    "body": "If two requests landed at the same moment, both could fail outright. Requests now queue properly instead of colliding."
+  },
+  {
+    "date": "2026-11-16",
+    "title": "Legal files access (pilot)",
+    "body": "A new read-only Legal files connection is available for pilot users, alongside the existing Jobs and Sales connections."
+  },
+  {
+    "date": "2026-11-16",
+    "title": "Removed the Everforest theme",
+    "body": "The Everforest theme option has been removed from the theme picker. It overlapped too closely with the other themes already offered."
+  },
+  {
     "date": "2026-11-11",
     "title": "Sidebar: Chats section below Projects",
     "body": "The old \"History\" section is now called \"Chats\" and sits right under your projects, with its own collapse arrow just like Projects."

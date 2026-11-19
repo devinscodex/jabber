@@ -143,7 +143,9 @@ MCP_CONNECTIONS = [
     ("files_jobs", "Files: Jobs", MEG_FILES_ALLOWLIST_PATH, "jobs"),
     ("files_sales", "Files: Sales", MEG_FILES_ALLOWLIST_PATH, "sales"),
     ("files_doclink", "Files: DocLink", MEG_FILES_ALLOWLIST_PATH, "doclink"),
+    ("files_legal", "Files: Legal", MEG_FILES_ALLOWLIST_PATH, "legal"),
     ("office_docs", "Office Docs", tools.OFFICE_DOCS_ALLOWLIST_PATH, "allowed_namespaces"),
+    ("image_gen", "Image Generation", tools.IMAGE_GEN_ALLOWLIST_PATH, "allowed_namespaces"),
     ("thinking", "Show AI Reasoning", THINKING_ALLOWLIST_PATH, "allowed_namespaces"),
 ]
 
@@ -534,7 +536,7 @@ def _admin_overview() -> dict:
     """Read-only snapshot. Namespace roster is the UNION of (a) every
     real conversation directory and (b) every namespace appearing in any
     MCP allowlist -- a user can be allowlisted before ever opening the
-    chat (real case: nmoesch/svogt on Wrike, zero conversations), and
+    chat (real case: carol/dave on Wrike, zero conversations), and
     omitting them would hide a live access grant from the admin view."""
     namespaces = set()
     conv_counts = {}
@@ -2418,7 +2420,7 @@ def _ollama_ready_messages(messages: list) -> list:
     right before each call -- the real stored conv/history_messages list
     is never mutated, only the outgoing request shape.
 
-    Real bug fixed 2026-10-19 (Leviathan sweep, a real pilot conversation):
+    Real bug fixed 2026-10-19 (Leviathan sweep, lbush's conversation):
     a flaky frontend paste can persist an images entry with real mime
     metadata but an EMPTY data string -- {"mime": "image/png", "data":
     ""} -- confirmed live on disk, the image-paste path from the
@@ -2489,7 +2491,7 @@ def _ollama_call(model: str, messages: list, ns: str | None = None) -> dict:
 def _ollama_call_final(model: str, messages: list) -> dict:
     """Real fallback for MAX_TOOL_ROUNDS being hit, added 2026-10-08 (bug
     found live, real pilot user -- Emma -- asked a broad factual question
-    ("where are all the locations for the company"), the model
+    ("where are all the locations for Org"), the model
     kept refining web_search queries round after round chasing an exact
     address for every location instead of answering with what it already
     had, hit the cap, and the OLD behavior returned the bare literal
@@ -2635,7 +2637,10 @@ def _renumber_search(name: str, output: dict, tool_calls_made: list) -> None:
             r["n"] = offset + i
 
 
-def _strip_tool_output_for_wire(output: dict) -> dict:
+_IMAGE_LANE_TOOLS = {"generate_image", "edit_image", "generate_qr_code"}
+
+
+def _strip_tool_output_for_wire(output: dict, name: str | None = None) -> dict:
     """Returns a copy of a tool's output dict with any image base64
     DATA stripped out (mime/dimensions/etc kept) -- the shape sent to
     the BROWSER, never the model. Added 2026-10-12 (council review --
@@ -2645,7 +2650,18 @@ def _strip_tool_output_for_wire(output: dict) -> dict:
     tool-call debug pane otherwise. The real image bytes still reach
     the MODEL via the separate message.images wire field
     (_tool_result_message below) -- this only controls what the
-    browser's own JSON ever contains."""
+    browser's own JSON ever contains.
+
+    2026-11-18 (image-gen bridge, per the 2026-10-27 decision record's
+    own flagged gap -- "give generated images their own lane that
+    skips the strip step"): generate_image/edit_image/generate_qr_code
+    already cap their own preview to a small thumbnail (<=320x320, or
+    a tiny QR code) at the SOURCE in tools.py, never the original
+    multi-MB file -- the original choking-debug-pane problem this
+    function exists for does not apply to them, so they skip stripping
+    entirely and the browser gets the real small preview bytes."""
+    if name in _IMAGE_LANE_TOOLS:
+        return output
     images = output.get("images")
     if not images or not isinstance(images, list):
         return output
@@ -2944,7 +2960,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 # identifier the model states but that never appeared
                 # in this turn's real sage_* tool output used to only
                 # get a footnote AFTER being shown to the user (real
-                # incident: a user's session invented table names
+                # incident: djmartin's session invented table names
                 # "GLJobHdr"/"PMJob" that were never in any
                 # sage_list_tables output). Reject the round instead --
                 # the content is discarded, never shown -- and force a
@@ -3057,10 +3073,10 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
             fn = call.get("function", {})
             name = fn.get("name", "")
             args = fn.get("arguments", {})
-            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made)
+            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made, history_messages=messages)
             stuck = _is_stuck_identical_retry(tool_calls_made, name, args, output)
             _renumber_search(name, output, tool_calls_made)
-            tool_calls_made.append({"name": name, "args": args, "output": _strip_tool_output_for_wire(output)})
+            tool_calls_made.append({"name": name, "args": args, "output": _strip_tool_output_for_wire(output, name)})
             messages.append(_tool_result_message(output, images_budget))
             if stuck:
                 # Real incident, 2026-10-21: burned the whole round
@@ -3166,6 +3182,49 @@ def _thinking_degenerate(text: str) -> bool:
             or _looks_repeating(text))
 
 
+def _segment_density_cut(text: str, sent_pos: int, release_to: int,
+                          min_len: int = 120, per_chars: int = 200) -> bool:
+    """True when a just-completed span (between the previous release point
+    and this one) is long, run-on, and carries too little real internal
+    soft punctuation for its length -- 2026-11-18, council round 2 real
+    incident: two garbage bursts (442 and 214 chars, essentially zero
+    internal commas/dashes) each happened to END in a trailing break char
+    (an ellipsis, a '?!' run), which reset _last_break's trailing distance
+    measurement to ~0 right when the garbage stopped -- so both slipped
+    under NOPUNCT_RUN_MAX and got released by the holdback gate as if they
+    were ordinary clean sentences. Neither _runaway_cut nor the gate's
+    release rule ever look at whether the SPAN BETWEEN two breaks is itself
+    coherent, only distance since the last one -- this does, cheaply: a
+    genuine sentence/clause this long almost always has soft punctuation
+    roughly every couple hundred chars; pure run-on filler usually doesn't.
+
+    Threshold SCALES with span length (min_soft = max(1, len(span) //
+    per_chars)), not a flat min_soft=1 -- verified against the REAL saved
+    incident text that a flat min_soft=1 (an earlier draft of this fix)
+    would have MISSED the first of the two real bursts: it was stitched
+    directly onto a legitimate lead-in sentence with no intervening hard
+    break, and that lead-in's own single trailing em-dash was enough to
+    satisfy a flat threshold across the whole 509-char combined span.
+    per_chars=200 confirmed (real replay of this exact conversation's other,
+    genuinely clean, 870- and 3911-char replies) to produce zero false
+    positives while still catching both real garbage spans.
+
+    Exempts code-fence content (a long line with no comma is normal code,
+    e.g. a function signature) and markdown table rows (pipe-delimited,
+    also legitimately comma-free) -- gilfoyle's council-round-2 finding,
+    both would otherwise false-trip and discard real, clean content."""
+    span = text[sent_pos:release_to]
+    if len(span) < min_len:
+        return False
+    if "|" in span and span.count("|") >= 2:
+        return False  # markdown table row
+    if text[:sent_pos].count("```") % 2 == 1:
+        return False  # inside an open code fence -- code legitimately lacks commas
+    min_soft = max(1, len(span) // per_chars)
+    soft_count = span.count(",") + span.count("-") + span.count("\u2014")
+    return soft_count < min_soft
+
+
 class _ContentGate:
     """Sentence-granular holdback for streamed content (2026-11-04,
     council round 2 -- Devin's bar: the visible answer must NEVER show
@@ -3207,6 +3266,8 @@ class _ContentGate:
             return "", "cap"
         release_to = _last_break(self.text) + 1
         if release_to > self.sent:
+            if _segment_density_cut(self.text, self.sent, release_to):
+                return "", "pattern"
             out = self.text[self.sent:release_to]
             self.sent = release_to
             return out, None
@@ -3620,10 +3681,10 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             fn = call.get("function", {})
             name = fn.get("name", "")
             args = fn.get("arguments", {})
-            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made)
+            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made, history_messages=messages)
             stuck = _is_stuck_identical_retry(tool_calls_made, name, args, output)
             _renumber_search(name, output, tool_calls_made)
-            wire_output = _strip_tool_output_for_wire(output)
+            wire_output = _strip_tool_output_for_wire(output, name)
             tool_calls_made.append({"name": name, "args": args, "output": wire_output})
             yield {"type": "tool_call", "name": name, "args": args, "output": wire_output}
             messages.append(_tool_result_message(output, images_budget))
@@ -4020,7 +4081,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # reliably carry "email" (see cf_access_auth.py's own
             # verify()), never a guaranteed human display name claim, so
             # the name is DERIVED from the email's local-part (e.g.
-            # "jsmith" -> "Jsmith") -- not pretty, but real and
+            # "efeilbach" -> "Efeilbach") -- not pretty, but real and
             # user-specific, which a hardcoded "Devin" never was for
             # anyone else. "local" (auth-disabled single-user dev mode)
             # gets a plain "You" rather than a fabricated name.
@@ -4140,6 +4201,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             if not resolved.is_file():
                 self._json(404, {"error": "not found -- link may have expired or already been used"})
+                return
+            raw = resolved.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+        elif self.path.startswith("/library/"):
+            # Personal library (2026-11-18) -- same real identity check
+            # as /downloads/ above (never a new mechanism), but this
+            # content has NO age-based cleanup: downloads-cleanup.sh only
+            # ever sweeps DOWNLOADS_DIR, never LIBRARY_DIR, by design.
+            # Path shape: /library/<ns>/<token>/<filename>.
+            parts = urllib.parse.unquote(self.path[len("/library/"):]).split("/", 2)
+            if len(parts) != 3 or not all(parts) or any(".." in p or "/" in p for p in parts[:2]):
+                self._json(400, {"error": "expected /library/<ns>/<token>/<filename>"})
+                return
+            req_ns, token, filename = parts
+            if req_ns != self.ns:
+                self._json(403, {"error": "this library link does not belong to your account"})
+                return
+            file_path = tools.LIBRARY_DIR / req_ns / token / filename
+            try:
+                resolved = file_path.resolve()
+                if not str(resolved).startswith(str(tools.LIBRARY_DIR.resolve())):
+                    raise ValueError("path escapes library dir")
+            except (ValueError, OSError):
+                self._json(400, {"error": "invalid path"})
+                return
+            if not resolved.is_file():
+                self._json(404, {"error": "not found"})
                 return
             raw = resolved.read_bytes()
             self.send_response(200)
@@ -4491,7 +4584,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Org instance: /api/battery/launch, /api/battery/runs,
         # /api/battery/stream, and /api/walls/model-retirement-testing UI
         # surfaces are Cairn-admin-only (real subprocess launch of harness
-        # test batteries on the shared GPU) -- not appropriate for an Org
+        # test batteries on the shared GPU) -- not appropriate for a Org
         # pilot user's chat session. Disabled outright on this fork rather
         # than access-gated, matching the same "don't hand the surface out
         # at all" call made for grep_project/fossil_log/get_meter_stats.
@@ -5259,7 +5352,7 @@ def main():
     p.add_argument("--model", default="qwen3.6:27b")
     # Default stays 127.0.0.1 -- loopback-only unless explicitly widened.
     # Real use, 2026-08-02: watchtower04's Nginx (public edge, real cert
-    # for example-host.example.com) reverse-proxies here over Tailscale, so
+    # for cairn.ravenscrest.xyz) reverse-proxies here over Tailscale, so
     # this process needs to actually be reachable on the tailnet interface
     # -- same "tailnet is the firewall, never port-forward" trust model
     # already used for Ollama and the fossil server elsewhere in this
@@ -5278,7 +5371,7 @@ def main():
     # tailnet IP broke the actual current deployment -- Beacon runs ON
     # Ouroboros itself today (cairn-webui.service, same box as Ollama),
     # and a host can't reliably reach itself through its own Tailscale
-    # interface (same class as the example-host.example.com self-connect
+    # interface (same class as the cairn.ravenscrest.xyz self-connect
     # failure, LESSONS.md 2026-08-04: `curl 10.0.0.5:11434` from
     # Ouroboros itself gets an instant connection failure, `curl
     # localhost:11434` from the same shell returns 200). Testbench model

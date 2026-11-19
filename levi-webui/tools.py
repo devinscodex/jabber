@@ -23,9 +23,11 @@ import csv
 import json
 import re
 import secrets
+import shutil
 import struct
 import subprocess
 import sys
+import time
 import urllib.parse
 from datetime import date
 from pathlib import Path
@@ -766,13 +768,32 @@ def web_search(model: str, query: str, max_results: int = 5) -> dict:
 # copy's TOOL_SCHEMAS/DISPATCH, not just left unwired -- grep_project's
 # real path root is the whole Cairn repo (Assumption default path="."),
 # which includes work/ (MILLPOND BEC case material, ledgers, everything).
-# Per the 2026-09-14 council (bard+gilfoyle+grok, unanimous): an Org pilot
+# Per the 2026-09-14 council (bard+gilfoyle+grok, unanimous): a Org pilot
 # user must never get a tool that can read the harness's own repo, full
 # stop -- this isn't a per-request classify_path() gate, it's "don't hand
 # the tool out at all" on this instance. Functions themselves stay
 # defined above (unused, harmless) so this file can still be diffed
 # against the original webui/tools.py without drift confusion; only the
 # schema/dispatch exposure is cut.
+MAX_QR_DATA_CHARS = 2000
+
+
+def generate_qr_code(model: str, data: str = "", filename: str = "") -> dict:
+    if not data:
+        return {"result": "Error: data is required"}
+    if len(data) > MAX_QR_DATA_CHARS:
+        return {"result": f"Error: data is {len(data)} chars, exceeds the {MAX_QR_DATA_CHARS} char cap"}
+    import qrcode
+    import io
+    img = qrcode.make(data)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
+    import base64 as _b64
+    result = f"Generated a QR code for: {data[:80]}{'...' if len(data) > 80 else ''}"
+    return {"result": result, "images": [{"mime": "image/png", "data": _b64.b64encode(png_bytes).decode()}]}
+
+
 TOOL_SCHEMAS = [
     {
         "type": "function",
@@ -834,16 +855,41 @@ TOOL_SCHEMAS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_qr_code",
+            "description": (
+                "Generate a real scannable QR code PNG for a URL or short text and give back a "
+                "download link. Always use this for ANY QR code request -- NEVER generate_image/"
+                "edit_image, which are diffusion models with no reliable way to render a QR code's "
+                "exact scannable bit pattern (council decision, 2026-10-27)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "data": {"type": "string", "description": "The URL or text to encode, max 2000 characters."},
+                    "filename": {"type": "string", "description": "Base filename without extension, e.g. 'wifi-guest'. Optional."},
+                },
+                "required": ["data"],
+            },
+        },
+    },
 ]
 
 # get_meter_stats/fossil_log/grep_project deliberately absent -- see the
 # TOOL_SCHEMAS comment above, same reasoning. web_search added 2026-10-08,
 # see its own docstring/comment above -- internet-only, no repo exposure.
+# generate_qr_code added 2026-11-18 alongside the image-gen bridge below --
+# deliberately unconditional/no allowlist (deterministic, no GPU, nothing
+# sensitive) and deliberately NOT part of the image-gen tool, per the
+# council's QR-routing decision quoted in its own description above.
 DISPATCH = {
     "list_project_folder": list_project_folder,
     "read_project_file": read_project_file,
     "read_project_image": read_project_image,
     "web_search": web_search,
+    "generate_qr_code": generate_qr_code,
 }
 
 # Tools in this set take a real per-identity namespace (ns) as a required
@@ -984,7 +1030,7 @@ def sage_search_columns(model: str, ns: str | None = None, database: str = "", p
     return {"result": result}
 
 
-# Real incident 2026-10-27: traced every real Sage failure in the
+# Real incident 2026-10-27: traced every djmartin Sage failure in the
 # query log and found the actual pattern -- it is almost never "described
 # a table, then guessed a wrong column on it." It is "queried a table that
 # was NEVER described (or even listed) this turn at all" -- either a real
@@ -1060,7 +1106,7 @@ def sage_run_query(model: str, ns: str | None = None, database: str = "", sql: s
 SAGE_TOOL_SCHEMAS = [
     {"type": "function", "function": {
         "name": "sage_list_databases",
-        "description": "List Sage 100 Premium 2025 / DocLink company databases on DB02 that are actually readable (verified read access, not just visible). MAS_MNS is the main company (the company); MAS_MCO is a related company; other MAS_* databases are not mainstream.",
+        "description": "List Sage 100 Premium 2025 / DocLink company databases on DB02 that are actually readable (verified read access, not just visible). MAS_MNS is the main company (Org); MAS_MCO is Martin Construction; other MAS_* databases are not mainstream.",
         "parameters": {"type": "object", "properties": {}},
     }},
     {"type": "function", "function": {
@@ -1224,6 +1270,25 @@ DOWNLOADS_DIR = Path("/home/ai/levi-webui/downloads")
 DOWNLOADS_PUBLIC_BASE = "https://leviathan.example.com"  # real
 # Cloudflare Tunnel hostname for this box, confirmed live 2026-10-21
 # (~/.cloudflared config: tunnel 81e98aa1-... -> 127.0.0.1:8420).
+
+# Personal library (2026-11-18, Devin: image-gen output should persist
+# "longer than 48 hours" with "no quota at this time", personal-per-user
+# scope -- NOT the same retention as DOWNLOADS_DIR above). A genuinely
+# SEPARATE directory, never touched by downloads-cleanup.sh's 48h sweep
+# (that cron greps DOWNLOADS_DIR by literal path, not by age alone --
+# putting library content in its own tree is what keeps it out of that
+# sweep, not a flag or exemption list that could silently drift). No
+# disk-quota check on writes here either, per the same decision -- unlike
+# _office_disk_quota_ok's 200MB cap on DOWNLOADS_DIR content.
+LIBRARY_DIR = Path("/home/ai/levi-webui/library")
+
+
+def _write_library(ns: str, filename: str, data: bytes) -> str:
+    token = secrets.token_urlsafe(16)
+    dest_dir = LIBRARY_DIR / ns / token
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    (dest_dir / filename).write_bytes(data)
+    return f"{DOWNLOADS_PUBLIC_BASE}/library/{ns}/{token}/{urllib.parse.quote(filename)}"
 
 
 def wrike_download_attachment(model: str, ns: str | None = None, task_id: str = "", attachment_name: str | None = None) -> dict:
@@ -1409,11 +1474,9 @@ def create_spreadsheet(model: str, ns: str | None = None, filename: str = "", sh
     buf = io.BytesIO()
     wb.save(buf)
     data = buf.getvalue()
-    if not _office_disk_quota_ok(ns, len(data)):
-        return {"result": "Error: you're at your download storage quota (200MB) -- clear old downloads or ask an admin"}
     fname = _slugify_filename(filename or sheets[0].get("name", ""), "spreadsheet", "xlsx")
-    url = _write_download(ns, fname, data)
-    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sheets)} sheet(s)). Download link (expires in 48h, only works for your own account): {url}"
+    url = _write_library(ns, fname, data)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sheets)} sheet(s)). Library link (personal, no expiry, only works for your own account): {url}"
     _log_office_doc(model, ns, "create_spreadsheet", fname, result)
     return {"result": result}
 
@@ -1447,11 +1510,9 @@ def create_document(model: str, ns: str | None = None, title: str = "", sections
     buf = io.BytesIO()
     doc.save(buf)
     data = buf.getvalue()
-    if not _office_disk_quota_ok(ns, len(data)):
-        return {"result": "Error: you're at your download storage quota (200MB) -- clear old downloads or ask an admin"}
     fname = _slugify_filename(title, "document", "docx")
-    url = _write_download(ns, fname, data)
-    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sections)} section(s)). Download link (expires in 48h, only works for your own account): {url}"
+    url = _write_library(ns, fname, data)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sections)} section(s)). Library link (personal, no expiry, only works for your own account): {url}"
     _log_office_doc(model, ns, "create_document", fname, result)
     return {"result": result}
 
@@ -1495,11 +1556,9 @@ def create_presentation(model: str, ns: str | None = None, title: str = "", slid
     buf = io.BytesIO()
     deck.save(buf)
     data = buf.getvalue()
-    if not _office_disk_quota_ok(ns, len(data)):
-        return {"result": "Error: you're at your download storage quota (200MB) -- clear old downloads or ask an admin"}
     fname = _slugify_filename(title, "presentation", "pptx")
-    url = _write_download(ns, fname, data)
-    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(slides)} slide(s)). Download link (expires in 48h, only works for your own account): {url}"
+    url = _write_library(ns, fname, data)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(slides)} slide(s)). Library link (personal, no expiry, only works for your own account): {url}"
     _log_office_doc(model, ns, "create_presentation", fname, result)
     return {"result": result}
 
@@ -1595,6 +1654,279 @@ OFFICE_DISPATCH = {
 _OFFICE_TOOL_NAMES = set(OFFICE_DISPATCH.keys())
 
 
+# Image generation/editing (2026-11-18, Qwen-Image-2.1 -- prototyped and
+# proven working standalone 2026-10-27, see ~/qwen-image-test/ and the
+# jabber-leviathan-webchat skill's future-capabilities.md decision
+# record). Invocation shape: ordinary tool-calling, Devin's explicit
+# call (2026-11-18) -- the model decides when to call these, same as
+# every other tool here.
+#
+# ARCHITECTURE: unlike Sage/Wrike/Office above, this does NOT dynamically
+# import a torch/diffusers module into this process. Those are a multi-GB
+# footprint with real GPU/CUDA failure modes that have no business living
+# in the always-on chat server -- a crash in diffusion inference must
+# never be able to take levi-webui itself down. Instead this subprocess-
+# calls the already-proven ~/qwen-image-test venv's python running
+# ~/image-gen-mcp/run_qwen_image.py as a fully separate process per call.
+#
+# NSFW: Devin's explicit decision (2026-11-18) -- there is NO toggle, NO
+# flag, NO admin switch anywhere in this file that can enable NSFW output
+# on this Leviathan/Org instance. The output-side safety check in
+# run_qwen_image.py is unconditional and is the real enforcement (Qwen-
+# Image-2.1's own open weights ship with zero built-in content filter,
+# confirmed by research 2026-11-18) -- this is backed up by a cheap
+# prompt-side soft reject here too, purely to save GPU time on an obvious
+# case; the soft reject is NOT the real guarantee and is never relied on
+# alone. If image-gen is ever enabled on a DIFFERENT, non-Org deployment,
+# that happens in a different file, never by adding a bypass here.
+IMAGE_GEN_DIR = Path("/home/ai/image-gen-mcp")
+IMAGE_GEN_VENV_PYTHON = Path("/home/ai/qwen-image-test/.venv/bin/python")
+IMAGE_GEN_SCRIPT = IMAGE_GEN_DIR / "run_qwen_image.py"
+IMAGE_GEN_ALLOWLIST_PATH = IMAGE_GEN_DIR / "image_gen_allowlist.json"
+IMAGE_GEN_LOG = IMAGE_GEN_DIR / "image_gen_log.csv"
+IMAGE_GEN_TIMEOUT_S = 180  # observed ~30-75s warm, more on a cold HF download
+
+# One GPU, one diffusion model process at a time -- see the real
+# simultaneous-OOM incident documented at its use site in
+# _run_qwen_image below. threading.Lock (not multiprocessing) is
+# correct here: levi-webui serves requests via threads in one process,
+# never separate worker processes.
+_QWEN_IMAGE_LOCK = _threading.Lock()
+
+# Cheap pre-filter only -- see the architecture comment above. Not
+# exhaustive by design; the real backstop is run_qwen_image.py's
+# unconditional output classifier.
+_SOFT_NSFW_RE = re.compile(
+    r"\b(nsfw|nude|naked|nudity|explicit|porn|pornographic|sex(?:ual)?|"
+    r"erotic|hentai|fetish)\b", re.I,
+)
+
+
+def _image_gen_allowed(ns: str | None) -> bool:
+    if not ns:
+        return False
+    try:
+        with open(IMAGE_GEN_ALLOWLIST_PATH) as f:
+            data = json.load(f)
+        return ns in set(data.get("allowed_namespaces", []))
+    except Exception:
+        return False
+
+
+def _log_image_gen(model: str, ns: str | None, tool: str, detail: str, result: str = ""):
+    IMAGE_GEN_LOG.parent.mkdir(parents=True, exist_ok=True)
+    outcome = "error" if str(result).startswith("Error:") else "ok"
+    with open(IMAGE_GEN_LOG, "a", newline="") as f:
+        csv.writer(f).writerow([date.today().isoformat(), model, ns or "", tool, detail[:300], outcome])
+
+
+def _run_qwen_image(mode: str, ns: str, prompt: str, input_bytes: bytes | None = None) -> dict:
+    """Shared subprocess call for generate_image/edit_image. Returns
+    {"result": str} on error/block, or {"result": str, "images": [...]}
+    with a real download link + capped inline preview on success."""
+    if _SOFT_NSFW_RE.search(prompt or ""):
+        return {"result": "Error: this request reads as NSFW content, which is not available on this account"}
+
+    token = secrets.token_urlsafe(16)
+    work_dir = IMAGE_GEN_DIR / "tmp" / token
+    work_dir.mkdir(parents=True, exist_ok=True)
+    req = {"mode": mode, "prompt": prompt}
+    try:
+        if input_bytes is not None:
+            in_path = work_dir / "input.png"
+            in_path.write_bytes(input_bytes)
+            req["input_image"] = str(in_path)
+        req_path = work_dir / "request.json"
+        out_path = work_dir / "output.png"
+        req_path.write_text(json.dumps(req))
+
+        # Real incident, 2026-11-18: 3 back-to-back edit calls hit a
+        # transient CUDA OOM from momentary VRAM contention (another
+        # process's peak usage colliding with this one's load), even
+        # though steady-state free memory was fine moments later --
+        # confirmed via nvidia-smi after the fact, not a permanent leak.
+        # One short-backoff retry absorbs that transient case without
+        # masking a REAL, persistent OOM (which still fails after the
+        # retry, same as before).
+        #
+        # Second real incident, same day, found while pressure-testing
+        # ahead of a multi-user pilot: 2 literally SIMULTANEOUS
+        # generate_image calls both OOM'd outright, retry included --
+        # the GPU worker has no notion of "wait your turn," so two real
+        # concurrent users WILL collide on day one. Fix: _QWEN_IMAGE_LOCK
+        # serializes every GPU job process-wide -- one request runs the
+        # diffusion model at a time, everyone else queues behind the
+        # lock instead of racing for the same VRAM. This trades a bit of
+        # wait time under real concurrent load for correctness (no
+        # silent failures); a real job queue with position/ETA feedback
+        # is a nicer UX than a blocking lock but isn't built yet -- revisit
+        # if pilot usage makes the wait noticeable.
+        proc = None
+        with _QWEN_IMAGE_LOCK:
+            for attempt in range(2):
+                proc = subprocess.run(
+                    [str(IMAGE_GEN_VENV_PYTHON), str(IMAGE_GEN_SCRIPT), str(req_path), str(out_path)],
+                    capture_output=True, text=True, timeout=IMAGE_GEN_TIMEOUT_S,
+                )
+                if "out of memory" not in (proc.stderr or "").lower() or attempt == 1:
+                    break
+                time.sleep(8)
+        last_line = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout.strip() else ""
+        try:
+            parsed = json.loads(last_line)
+        except (ValueError, IndexError):
+            return {"result": f"Error: image generation failed (no result): {proc.stderr[-500:]}"}
+
+        if parsed.get("blocked"):
+            return {"result": f"Error: {parsed.get('reason', 'generated output was blocked')}"}
+        if not parsed.get("ok"):
+            return {"result": f"Error: image generation failed: {parsed.get('error', 'unknown error')}"}
+
+        data = out_path.read_bytes()
+        fname = _slugify_filename(prompt[:40], "image", "png")
+        url = _write_library(ns, fname, data)
+        result = (f"Real image ready: {fname} ({parsed['width']}x{parsed['height']}, "
+                  f"{len(data):,} bytes, generated in {parsed.get('gen_seconds', '?')}s). "
+                  f"Library link (personal, no expiry, only works for your own account): {url}")
+        # Small capped preview so the UI's tool-call panel can show
+        # something real instead of a bare stripped placeholder -- see
+        # server.py's _strip_tool_output_for_wire fix for the other half
+        # of this (2026-11-18, the fix the 2026-10-27 decision record
+        # flagged as still needed).
+        try:
+            from PIL import Image as _PILImage
+            import io as _io
+            thumb = _PILImage.open(_io.BytesIO(data))
+            thumb.thumbnail((320, 320))
+            tbuf = _io.BytesIO()
+            thumb.save(tbuf, format="PNG")
+            preview_b64 = base64.b64encode(tbuf.getvalue()).decode()
+        except Exception:
+            preview_b64 = None
+        images = [{"mime": "image/png", "data": preview_b64, "width": parsed["width"], "height": parsed["height"]}] \
+            if preview_b64 else []
+        return {"result": result, "images": images}
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _last_pasted_image(history_messages: list | None) -> bytes | None:
+    """Most recent real pasted/drag-uploaded image anywhere in this
+    conversation (message-level `images`, the SAME shape the 2026-10-08
+    paste/upload feature persists via server.py's /chat payload -- NOT
+    the project-folder mechanism read_project_image/edit_image's other
+    branch uses). Scans in reverse so the MOST RECENT shared image wins
+    when several have been shared in one conversation. Tolerates the
+    known-real paste bug (an images entry with real mime metadata but an
+    EMPTY data string, see server.py's own 2026-10-08 comment) by
+    skipping it rather than crashing on empty/invalid base64. Returns
+    None if nothing real is found anywhere in history."""
+    for msg in reversed(history_messages or []):
+        for img in (msg.get("images") or []):
+            if not isinstance(img, dict):
+                continue
+            data = img.get("data")
+            if not data:
+                continue
+            try:
+                raw = base64.b64decode(data, validate=True)
+            except (ValueError, TypeError):
+                continue
+            if raw:
+                return raw
+    return None
+
+
+def generate_image(model: str, ns: str | None = None, prompt: str = "") -> dict:
+    if not ns:
+        return {"result": "Error: generate_image requires a real identity namespace, none provided"}
+    if not prompt:
+        return {"result": "Error: prompt is required"}
+    out = _run_qwen_image("generate", ns, prompt)
+    _log_image_gen(model, ns, "generate_image", prompt[:200], out["result"])
+    return out
+
+
+def edit_image(model: str, ns: str | None = None, project_id: str = "", path: str = "",
+                prompt: str = "", history_messages: list | None = None) -> dict:
+    if not ns:
+        return {"result": "Error: edit_image requires a real identity namespace, none provided"}
+    if not prompt:
+        return {"result": "Error: prompt is required"}
+    if project_id and path:
+        try:
+            base = _linked_folder(project_id, ns)
+        except ValueError as e:
+            return {"result": f"Error: {e}"}
+        target = _resolve_within(base, path)
+        if target is None:
+            return {"result": f"Error: path {path!r} resolves outside the linked folder, refused"}
+        if not target.is_file():
+            return {"result": f"Error: {path!r} is not a file"}
+        raw = target.read_bytes()
+        if len(raw) > MAX_PROJECT_IMAGE_BYTES:
+            return {"result": f"Error: {path!r} is {len(raw):,}B, over the {MAX_PROJECT_IMAGE_BYTES:,}B cap"}
+        try:
+            validate_image_bytes(raw)
+        except Exception as e:
+            return {"result": f"Error: {path!r} is not a valid image: {e}"}
+        source_desc = path
+    else:
+        # 2026-11-18: the far more common real case -- a user pastes or
+        # drag-attaches a photo straight into the chat box (the 2026-10-08
+        # feature), never touching a project folder at all. Those land as
+        # message-level `images` ({"mime":..., "data": base64}, same shape
+        # server.py's /chat payload already persists) -- not a project
+        # file, so project_id/path are legitimately absent for this case.
+        raw = _last_pasted_image(history_messages)
+        if raw is None:
+            return {"result": "Error: no project_id/path given, and no image was pasted or "
+                               "uploaded earlier in this conversation to edit"}
+        if len(raw) > MAX_PROJECT_IMAGE_BYTES:
+            return {"result": f"Error: that image is {len(raw):,}B, over the {MAX_PROJECT_IMAGE_BYTES:,}B cap"}
+        try:
+            validate_image_bytes(raw)
+        except Exception as e:
+            return {"result": f"Error: the pasted/uploaded image is not valid: {e}"}
+        source_desc = "a pasted/uploaded image from this conversation"
+    out = _run_qwen_image("edit", ns, prompt, input_bytes=raw)
+    _log_image_gen(model, ns, "edit_image", f"{source_desc}: {prompt[:150]}", out["result"])
+    return out
+
+
+IMAGE_GEN_TOOL_SCHEMAS = [
+    {"type": "function", "function": {
+        "name": "generate_image",
+        "description": ("Generate a real image from a text description (Qwen-Image-2.1) and give "
+                         "back a download link. Takes ~25-75 seconds -- say so before calling it. "
+                         "Never use this for QR codes (use generate_qr_code instead)."),
+        "parameters": {"type": "object", "properties": {
+            "prompt": {"type": "string", "description": "A detailed description of the image to generate."}},
+            "required": ["prompt"]},
+    }},
+    {"type": "function", "function": {
+        "name": "edit_image",
+        "description": ("Edit an existing image with an instruction, e.g. 'change the sky to "
+                         "night' (Qwen-Image-2.1). Takes ~25-75 seconds -- say so before calling "
+                         "it. Two ways to give it a source image: (1) omit project_id/path -- edits "
+                         "the most recently pasted or uploaded image in THIS conversation, the "
+                         "common case; or (2) pass project_id/path to edit a file already sitting "
+                         "in the chat's linked project folder instead."),
+        "parameters": {"type": "object", "properties": {
+            "project_id": {"type": "string", "description": "Optional. The current project's id -- only needed to edit a file from the linked project folder instead of a pasted/uploaded image."},
+            "path": {"type": "string", "description": "Optional. Image file path relative to the linked folder's root -- only used together with project_id."},
+            "prompt": {"type": "string", "description": "The edit instruction."}},
+            "required": ["prompt"]},
+    }},
+]
+
+IMAGE_GEN_DISPATCH = {
+    "generate_image": generate_image,
+    "edit_image": edit_image,
+}
+_IMAGE_GEN_TOOL_NAMES = set(IMAGE_GEN_DISPATCH.keys())
+
+
 def get_tool_schemas(ns: str | None) -> list:
     """Per-identity tool list -- base TOOL_SCHEMAS for everyone, plus
     Sage-MCP's and/or Wrike-MCP's schemas for ns in their respective
@@ -1608,13 +1940,15 @@ def get_tool_schemas(ns: str | None) -> list:
         schemas = schemas + WRIKE_TOOL_SCHEMAS
     if _office_docs_allowed(ns):
         schemas = schemas + OFFICE_TOOL_SCHEMAS
+    if _image_gen_allowed(ns):
+        schemas = schemas + IMAGE_GEN_TOOL_SCHEMAS
     if _megfiles is not None:
         schemas = schemas + _megfiles.schemas_for(ns)
     return schemas
 
 
 def run_tool(name: str, args: dict, model: str, ns: str | None = None,
-             tool_calls_made: list | None = None) -> dict:
+             tool_calls_made: list | None = None, history_messages: list | None = None) -> dict:
     if name in _SAGE_TOOL_NAMES:
         # Gated here too, not just in get_tool_schemas -- never trust
         # that hiding a schema is the only thing stopping a call; a
@@ -1647,6 +1981,26 @@ def run_tool(name: str, args: dict, model: str, ns: str | None = None,
             return {"error": f"{name} is not available for this account"}
         fn = OFFICE_DISPATCH[name]
         try:
+            return fn(model=model, ns=ns, **args)
+        except Exception as e:
+            return {"error": f"{name} failed: {e}"}
+    if name in _IMAGE_GEN_TOOL_NAMES:
+        # Same independent re-check discipline as Sage/Wrike/Office above.
+        # This is the ONLY gate that matters for NSFW on this instance --
+        # there is no separate NSFW flag to check, because there is no
+        # NSFW-enabling code path here at all (see the block comment
+        # above IMAGE_GEN_DIR).
+        if not _image_gen_allowed(ns):
+            return {"error": f"{name} is not available for this account"}
+        fn = IMAGE_GEN_DISPATCH[name]
+        try:
+            if name == "edit_image":
+                # The ONLY tool that needs real conversation history --
+                # to find the most recently pasted/uploaded image when
+                # the model omits project_id/path. Server-injected only,
+                # same discipline as ns -- never accepted from the
+                # model's own tool-call arguments.
+                return fn(model=model, ns=ns, history_messages=history_messages, **args)
             return fn(model=model, ns=ns, **args)
         except Exception as e:
             return {"error": f"{name} failed: {e}"}
@@ -1685,7 +2039,7 @@ def run_tool(name: str, args: dict, model: str, ns: str | None = None,
 # e.g. GL_Account, AP_ACHCheckEntry, MAS_MNS) and deliberately excludes
 # ordinary lowercase English words-with-underscores, which this
 # convention never produces.
-# Broadened 2026-10-27 (real incident: a real session invented
+# Broadened 2026-10-27 (real incident: djmartin's session invented
 # table names "GLJobHdr" and "PMJob", never seen in any sage_list_tables
 # output that session -- the old underscore-only form never saw them,
 # they're structurally invisible to it). Sage 100's real convention is
