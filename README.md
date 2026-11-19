@@ -6,6 +6,27 @@ and usable from any machine that runs a model server.
 Status: early. The configuration layer and built-in account system exist;
 the web server and model backends are being ported in.
 
+## Design philosophy
+
+Jabber's chat/library/project surfaces are modeled primarily on Grok's
+real app (date-grouped Library sections, Projects as their own first-class
+pages, named Bots) -- that's the reference UI, not a theme pulled from
+several places at once. A handful of other open harnesses contributed one
+specific, narrow idea each, rather than a wholesale architecture copy:
+Pi's minimal tool core (read/write/edit/bash by default, nothing more
+until you ask for it), Hermes's hard separation between a read-only
+session-artifact browser and project workspaces (never merged into one
+page), LibreChat's bundled-skill-plus-MCP-server packaging, and Open
+WebUI/AG2's typed event stream driving the UI without the agent loop
+needing to know a UI exists.
+
+Safety follows the same shape Cairn (a separate personal project) uses for
+its own local models: deterministic checks sit in front of the model
+instead of trusting the model's own judgment. A request needing real
+escalation gets mechanically routed away before any inference runs,
+rather than hoping the model recognizes it should ask for help. See
+ROADMAP.md's Governance section.
+
 ## Design
 
 - **Modes.** `mode = "solo"` is one person on localhost with no login.
