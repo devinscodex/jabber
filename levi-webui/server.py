@@ -152,10 +152,28 @@ MCP_CONNECTIONS = [
     ("files_sales", "Files: Sales", MEG_FILES_ALLOWLIST_PATH, "sales"),
     ("files_doclink", "Files: DocLink", MEG_FILES_ALLOWLIST_PATH, "doclink"),
     ("files_legal", "Files: Legal", MEG_FILES_ALLOWLIST_PATH, "legal"),
-    ("office_docs", "Office Docs", tools.OFFICE_DOCS_ALLOWLIST_PATH, "allowed_namespaces"),
-    ("image_gen", "Image Generation", tools.IMAGE_GEN_ALLOWLIST_PATH, "allowed_namespaces"),
+    ("office_docs", "Office Docs", tools.OFFICE_DOCS_ALLOWLIST_PATH, "disabled_namespaces"),
+    ("image_gen", "Image Generation", tools.IMAGE_GEN_ALLOWLIST_PATH, "disabled_namespaces"),
     ("thinking", "Show AI Reasoning", THINKING_ALLOWLIST_PATH, "allowed_namespaces"),
 ]
+
+# Default-on "core tool" connections (2026-11-23, Devin -- see
+# tools._office_docs_allowed's own docstring for the real incident):
+# office_docs/image_gen read as DISABLED-lists now, not allowlists --
+# everyone has them unless explicitly turned off. Every place that
+# reads "is ns currently enabled for this connection" has to flip the
+# membership check for exactly these two ids; _connection_enabled
+# below is the one place that inversion lives, reused everywhere
+# instead of three separate ad hoc ternaries.
+_INVERTED_CONNECTIONS = {"office_docs", "image_gen"}
+
+
+def _connection_enabled(cid: str, ns: str, members: set) -> bool:
+    """True if ns currently has connection cid, honoring the opt-out
+    inversion for _INVERTED_CONNECTIONS (membership there means
+    DISABLED, not allowed) -- same read-fresh members set either way,
+    just which side of "in/not in" counts as "has access" differs."""
+    return (ns not in members) if cid in _INVERTED_CONNECTIONS else (ns in members)
 
 # Skill groups (2026-10-29, Devin: "group the skills so we can apply skill
 # groups to users") -- pure UI/admin-convenience layer over MCP_CONNECTIONS
@@ -583,7 +601,7 @@ def _admin_overview() -> dict:
             # lets the frontend sort/derive a "Connected" recency light
             # without re-parsing the ISO text. None means never active.
             "last_activity_ts": last_activity.get(ns),
-            "connections": {cid: ns in connection_members[cid] for cid, *_rest in MCP_CONNECTIONS},
+            "connections": {cid: _connection_enabled(cid, ns, connection_members[cid]) for cid, *_rest in MCP_CONNECTIONS},
         })
     return {
         "connections": [{"id": cid, "label": label, "ok": connection_ok[cid]}
@@ -4509,8 +4527,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(400, {"error": f"unknown connection id: {connection_id!r}"})
                 return
             _cid, _label, alpath, akey = match
+            # List membership means DISABLED for _INVERTED_CONNECTIONS --
+            # the admin's requested end-state (`enabled`) is the
+            # opposite of what gets written to the list in that case.
+            membership_flag = (not enabled) if connection_id in _INVERTED_CONNECTIONS else enabled
             try:
-                _toggle_allowlist_membership(alpath, akey, target_ns, enabled)
+                _toggle_allowlist_membership(alpath, akey, target_ns, membership_flag)
             except Exception as e:
                 self._json(500, {"error": f"failed to update allowlist: {e}"})
                 return
@@ -4663,7 +4685,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             current = {}
             for cid, _label2, alpath, akey in MCP_CONNECTIONS:
                 ok, holders = _read_allowlist_members(alpath, akey)
-                current[cid] = ok and target_ns in holders
+                current[cid] = ok and _connection_enabled(cid, target_ns, holders)
 
             def fully_holds(g):
                 return all(current.get(c, False) for c in g[2])
@@ -4694,8 +4716,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     continue
                 _cid, _label3, alpath, akey = match
                 enabled = cid in will_turn_on
+                # Same inversion as the single-toggle handler above.
+                membership_flag = (not enabled) if cid in _INVERTED_CONNECTIONS else enabled
                 try:
-                    _toggle_allowlist_membership(alpath, akey, target_ns, enabled)
+                    _toggle_allowlist_membership(alpath, akey, target_ns, membership_flag)
                     changed.append({"connection": cid, "enabled": enabled})
                 except Exception as e:
                     self._json(500, {"error": f"failed updating {cid}: {e}", "partial": changed})

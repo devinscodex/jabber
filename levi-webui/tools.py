@@ -528,7 +528,7 @@ _SEARCH_CACHE_TTL_S = 600
 # are the two shapes that actually caused the real incident; deliberately
 # narrow (not a bare "?" or "=" check) to avoid false-positives on
 # ordinary queries that happen to contain either character.
-_API_SHAPE_RE = re.compile(r'[?&]\w+=|/api/')
+_API_SHAPE_RE = _re.compile(r'[?&]\w+=|/api/')
 _SEARCH_CACHE_MAX = 200
 _search_lock = _threading.Lock()
 _search_gate = _threading.Semaphore(2)
@@ -1495,14 +1495,26 @@ _OFFICE_CAPS = {
 
 
 def _office_docs_allowed(ns: str | None) -> bool:
+    """2026-11-23, Devin: document generation should be a default
+    "core tool" every user gets on day one (real incident -- a brand
+    new pilot user asked to export a list to Excel on her first real
+    task and got told "I am strictly read-only", purely because nobody
+    had opted her in yet). Flipped from an allowlist to a DISABLED-list:
+    everyone has this by default, an admin can still turn it OFF for a
+    specific person via the exact same toggle UI. Unlike Sage/Wrike/
+    file-search (real company data), this tool only ever produces new
+    documents from the conversation itself -- no data-access risk in
+    defaulting it on, so a missing/corrupt file also fails OPEN here
+    (nobody disabled) rather than closed, a deliberate, different
+    posture from every other allowlist in this file."""
     if not ns:
         return False
     try:
         with open(OFFICE_DOCS_ALLOWLIST_PATH) as f:
             data = json.load(f)
-        return ns in set(data.get("allowed_namespaces", []))
+        return ns not in set(data.get("disabled_namespaces", []))
     except Exception:
-        return False
+        return True
 
 
 def _slugify_filename(title: str, fallback: str, ext: str) -> str:
@@ -1853,14 +1865,17 @@ _SOFT_NSFW_RE = re.compile(
 
 
 def _image_gen_allowed(ns: str | None) -> bool:
+    """Same opt-out flip as _office_docs_allowed above, same date/reason
+    -- default-on core tool, admin can disable per person, missing/
+    corrupt file fails OPEN (not a data-access gate)."""
     if not ns:
         return False
     try:
         with open(IMAGE_GEN_ALLOWLIST_PATH) as f:
             data = json.load(f)
-        return ns in set(data.get("allowed_namespaces", []))
+        return ns not in set(data.get("disabled_namespaces", []))
     except Exception:
-        return False
+        return True
 
 
 def _log_image_gen(model: str, ns: str | None, tool: str, detail: str, result: str = ""):
