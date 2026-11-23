@@ -1093,6 +1093,14 @@ time. If you do run out of rounds, you'll get one more unassisted turn \
 to answer from what you already found -- use it to actually answer, not \
 to apologize for not finishing.
 
+Pick one stance per reply, don't mix them: if you're telling the user \
+you can't do something and need more from them (a name, a file, a \
+screenshot), don't ALSO fire tool calls trying that same thing in that \
+same reply -- the hedge streams to them before you know the calls are \
+about to run, so it reads as a flat contradiction. Either attempt it \
+(call the tools, no hedge) or hand it back to the user (no speculative \
+calls), never both in one reply.
+
 Real architecture fact, state it plainly if asked (a common real \
 confusion, don't guess or hedge on this): every one of your tools reads \
 from the disk of the MACHINE RUNNING THIS SERVER (Leviathan), never from \
@@ -3261,6 +3269,32 @@ def _looks_repeating(text: str) -> bool:
     return text[-4000:].count(text[-200:]) >= 3
 
 
+_CAPABILITY_NEGATION_RE = re.compile(
+    r"\b(can'?t|cannot|don'?t have|no way to|unable to|not able to)\b", re.IGNORECASE)
+_HANDOFF_ASK_RE = re.compile(
+    r"\b(tell me|give me|send me|share|paste|attach|screenshot|upload)\b", re.IGNORECASE)
+
+
+def _is_capability_handoff(content: str) -> bool:
+    """Real incident, 2026-11-23 (Devin, live, council round -- gilfoyle +
+    fable independently found the same root cause): round_content streams
+    to the browser live, chunk by chunk, before the harness even knows
+    round_tool_calls is also coming in the SAME round (Ollama can deliver
+    content before tool_calls within one streamed response) -- so a model
+    that commits to "I can't do this, you give me X" as its stated answer
+    can still fire tool calls trying the thing anyway in that same round,
+    and the hedge is already on the wire by the time that's known.
+
+    Deliberately narrow, not a bare "can't" check (false-positive risk
+    fable flagged: "can't open the URL, but I'll search the name instead"
+    is a LEGITIMATE narrated fallback, not a contradiction) -- only
+    matches content that both denies capability AND hands the task back
+    to the user ("tell me X" / "screenshot Y"), the actual closing-the-
+    door shape the real incident had. A model narrating its own next
+    tool-based attempt won't usually ask the user to do the work instead."""
+    return bool(_CAPABILITY_NEGATION_RE.search(content) and _HANDOFF_ASK_RE.search(content))
+
+
 def _thinking_degenerate(text: str) -> bool:
     """Live guard for the streaming 'thinking' field (2026-11-04, council
     round 2 -- real synonym-chain recurrence in thinking despite the
@@ -3798,6 +3832,21 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             yield {"type": "final", "content": verified_content,
                    "thinking": round_thinking or None, "tool_calls": tool_calls_made}
             return
+
+        if round_content and _is_capability_handoff(round_content):
+            # The hedge above is already on the wire (streamed live,
+            # can't un-send) -- can't prevent the contradiction, only
+            # correct it visibly rather than let the user read the
+            # hedge as the final answer while tools actually run for
+            # real right after it. Same "can't un-send, retract
+            # visibly" shape as the Sage-error retraction above, just a
+            # different trigger (stated inability + tool_calls, not a
+            # failed Sage call).
+            print(f"[capability-handoff] model={model} round={_round} ns={ns} -- "
+                  f"stated inability but fired {len(round_tool_calls)} tool call(s) anyway")
+            yield {"type": "content_delta", "text": (
+                "\n\n\u26a0\ufe0f Actually, let me check that for real instead of just guessing:"
+            )}
 
         # Real assistant turn (tool_calls, possibly with no content) has
         # to go back into the transcript before the tool results -- same

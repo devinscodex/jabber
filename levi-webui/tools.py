@@ -522,6 +522,13 @@ _SEARCH_ENGINES = ("ddg", "ddg_simple", "bing")
 _SEARCH_FETCH_TIMEOUT = 20
 _SEARCH_MIN_GAP_S = 1.5
 _SEARCH_CACHE_TTL_S = 600
+# Query-shape gate (2026-11-23, real incident -- see web_search's own
+# comment above its use): a search box takes keywords, not a URL,
+# REST query string, or API path. `?key=val`/`&key=val` and `/api/`
+# are the two shapes that actually caused the real incident; deliberately
+# narrow (not a bare "?" or "=" check) to avoid false-positives on
+# ordinary queries that happen to contain either character.
+_API_SHAPE_RE = re.compile(r'[?&]\w+=|/api/')
 _SEARCH_CACHE_MAX = 200
 _search_lock = _threading.Lock()
 _search_gate = _threading.Semaphore(2)
@@ -705,6 +712,26 @@ def web_search(model: str, query: str, max_results: int = 5) -> dict:
     query = (query or "").strip()
     if not query:
         return {"error": "empty query"}
+    if _API_SHAPE_RE.search(query):
+        # Real incident, 2026-11-23 (Devin, live): a model tried to look
+        # up a Spotify artist ID by stuffing a REST-API query string
+        # (`site:theaudiodb.com/api/v1/json/1/?i=... OR artistid=...`)
+        # straight into this plain search box. That shape reads as
+        # bot/scripted traffic to the search engine, triggers a block +
+        # fallback-engine reroute, and the fallback then pattern-matches
+        # garbage keywords out of the blocked string onto unrelated
+        # pages (a real case returned chess guides). Reject before any
+        # engine ever sees it -- a search box takes keywords, not a
+        # URL/query-string/API call; cyber-warden + gilfoyle council
+        # round, 2026-11-23: this also closes a real risk the garbage
+        # results were just a symptom of -- a worse-shaped query leaves
+        # the trust boundary (visible in the provider's own logs) BEFORE
+        # any block check runs, so this stops that at the source too.
+        return {"error": "this query looks like a URL, API call, or query string "
+                          "(e.g. contains ?key=value, /api/, or similar) rather than "
+                          "plain search keywords -- a search engine can't use that shape. "
+                          "Search on real words instead (a name, topic, or term), not "
+                          "an ID or raw query string.", "malformed_shape": True}
     if any(t in query.lower() for t in _blocklist_terms()):
         return {"error": "this query contains a restricted internal term and was not sent. "
                          "Search again using only general public terms.", "restricted": True}
@@ -848,7 +875,7 @@ TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "The search query"},
+                    "query": {"type": "string", "description": "Plain search keywords (a name, topic, or term) -- NOT a URL, API path, or query string like ?key=value; a search engine can't use that shape and it gets rejected before any engine sees it."},
                     "max_results": {"type": "integer", "description": "Max results to return, 1-10 (default 5)"},
                 },
                 "required": ["query"],
