@@ -1027,10 +1027,15 @@ and web_search (real live internet search via \
 DuckDuckGo, with Bing as a fallback -- use it for current events, facts outside your training \
 data, or anything needing a real up-to-date source). Use them when \
 they'd actually answer the question -- don't narrate using them, \
-actually call them. You do NOT have write access, exec, memory \
+actually call them. Beyond those base 4, you do NOT have exec, memory \
 read/write, or any repo-reaching tools (no meter stats, no fossil log, \
-no project-wide grep) in this context -- if asked to do something that \
-needs those, say so plainly instead of pretending to have done it.
+no project-wide grep) in this context, ever, for anyone -- if asked to \
+do something that needs those, say so plainly instead of pretending \
+to have done it. Write access specifically is NOT a blanket no like \
+those -- some users have real document/image-generation tools, check \
+the capabilities section appended below (if present) before ever \
+claiming you can't write a file; only say you can't if that section \
+genuinely doesn't list it for this user.
 
 Excel Power Query / M language questions (added 2026-10-27, real users \
 asking for formula/M-code help -- the same class of problem as a Sage \
@@ -2623,7 +2628,7 @@ def _ollama_call_final(model: str, messages: list) -> dict:
         return json.loads(resp.read())
 
 
-def _build_system_prompt(extra_instructions: str | None, model: str | None = None) -> str:
+def _build_system_prompt(extra_instructions: str | None, model: str | None = None, ns: str | None = None) -> str:
     """Shared by both the streaming and non-streaming chat loops --
     project-level custom instructions (2026-08-17, Devin: "settings for
     it (files, instructions, etc)") fold in here when the conversation
@@ -2633,6 +2638,27 @@ def _build_system_prompt(extra_instructions: str | None, model: str | None = Non
     a module-level constant would go stale the moment Devin edits a
     project's instructions mid-session."""
     system = SYSTEM_PROMPT
+    # Per-user capability blurbs (2026-11-23, Devin + 5-leg council +
+    # Grok -- see tools.get_capability_blurbs' own docstring for the
+    # real incident and the vendor-guidance citations this matches).
+    # SYSTEM_PROMPT's own base text above only ever claims what's true
+    # for EVERY user; anything beyond that (Sage, Wrike, document/
+    # image generation, file-search areas) only ever gets stated here,
+    # driven by the exact same gate tools.get_tool_schemas(ns) already
+    # used to decide what's really in this turn's tool list -- one
+    # fact, decided once, never a second hand-written claim that can
+    # drift out of sync with it again.
+    blurbs = tools.get_capability_blurbs(ns)
+    if blurbs:
+        system += (
+            "\n\nYou ALSO currently have these additional real capabilities for "
+            "this specific user (beyond the base tools above) -- use them when "
+            "they'd actually help, don't just narrate using them:\n"
+            + "\n".join(f"- You can {b}." for b in blurbs)
+            + "\nThis list is complete for this turn. If something asked of you "
+              "needs a capability not listed anywhere above, say so plainly "
+              "instead of pretending to have done it."
+        )
     if extra_instructions:
         system += f"\n\nProject-specific instructions for this conversation:\n{extra_instructions}"
     # Real bug found live 2026-08-02: nothing ever told the model what
@@ -2920,7 +2946,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
     support it or emitted nothing. A tool-calling round's own thinking (if
     any) is discarded, same as its intermediate content already was --
     only the round that actually answers is worth showing."""
-    system = _build_system_prompt(extra_instructions, model)
+    system = _build_system_prompt(extra_instructions, model, ns)
     messages = [{"role": "system", "content": system}] + _trim_old_images(history_messages)
     tool_calls_made = []
     images_budget = [MAX_TOOL_IMAGES_PER_TURN]
@@ -3554,7 +3580,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
     handler uses it to persist the conversation; the browser trusts the
     deltas it already rendered live for display and only reads "final"
     for model/title bookkeeping, not to re-render."""
-    system = _build_system_prompt(extra_instructions, model)
+    system = _build_system_prompt(extra_instructions, model, ns)
     messages = [{"role": "system", "content": system}] + _trim_old_images(history_messages)
     tool_calls_made = []
     images_budget = [MAX_TOOL_IMAGES_PER_TURN]

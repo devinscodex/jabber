@@ -2095,24 +2095,75 @@ IMAGE_GEN_DISPATCH = {
 _IMAGE_GEN_TOOL_NAMES = set(IMAGE_GEN_DISPATCH.keys())
 
 
+# Single registry, consumed by BOTH get_tool_schemas (the real tool
+# list a turn gets) and get_capability_blurbs (the plain-English
+# capability description the system prompt renders) -- one gate per
+# group, decided once, never two places independently deciding the
+# same fact. See get_capability_blurbs' own docstring below for the
+# real incident and the current vendor guidance this matches.
+_CAPABILITY_REGISTRY = [
+    ("sage", _sage_allowed, SAGE_TOOL_SCHEMAS,
+     "look up real Sage/ERP data (jobs, invoices, GL) when asked"),
+    ("wrike", _wrike_allowed, WRIKE_TOOL_SCHEMAS,
+     "look up or manage Wrike projects/tasks when asked"),
+    ("office_docs", _office_docs_allowed, OFFICE_TOOL_SCHEMAS,
+     "generate real downloadable Word/Excel/PowerPoint files when asked"),
+    ("image_gen", _image_gen_allowed, IMAGE_GEN_TOOL_SCHEMAS,
+     "generate or edit images when asked"),
+]
+
+
 def get_tool_schemas(ns: str | None) -> list:
     """Per-identity tool list -- base TOOL_SCHEMAS for everyone, plus
-    Sage-MCP's and/or Wrike-MCP's schemas for ns in their respective
-    allowlists (independent gates, a user can be on one, both, or
-    neither). Re-reads both allowlist files fresh every call (Devin
-    edits them live, no restart)."""
+    each _CAPABILITY_REGISTRY group's schemas for ns in that group's
+    gate (independent gates, a user can be on any subset). Re-reads
+    every allowlist file fresh every call (Devin edits them live, no
+    restart)."""
     schemas = TOOL_SCHEMAS
-    if _sage_allowed(ns):
-        schemas = schemas + SAGE_TOOL_SCHEMAS
-    if _wrike_allowed(ns):
-        schemas = schemas + WRIKE_TOOL_SCHEMAS
-    if _office_docs_allowed(ns):
-        schemas = schemas + OFFICE_TOOL_SCHEMAS
-    if _image_gen_allowed(ns):
-        schemas = schemas + IMAGE_GEN_TOOL_SCHEMAS
+    for _cid, allowed_fn, group_schemas, _blurb in _CAPABILITY_REGISTRY:
+        if allowed_fn(ns):
+            schemas = schemas + group_schemas
     if _megfiles is not None:
         schemas = schemas + _megfiles.schemas_for(ns)
     return schemas
+
+
+def get_capability_blurbs(ns: str | None) -> list[str]:
+    """Plain-language, outcome-phrased one-liners for whichever
+    _CAPABILITY_REGISTRY groups (plus meg-files areas) ns actually has
+    right now -- the SAME gate calls get_tool_schemas above uses, so
+    the system prompt's capability description can never list
+    something the real schema doesn't also have, or vice versa.
+
+    2026-11-23, Devin + 5-leg council + Grok (real incident: two
+    different new users, each with real write-capable tools granted,
+    asked a plain "what can you do?" and were told a hand-written,
+    never-updated system-prompt paragraph that flatly denied having
+    them -- the paragraph and the real per-user gates had no
+    connection to each other and silently drifted apart). Matches
+    current vendor guidance, not just this project's own judgment:
+    Anthropic's tool-use docs build the tool-use system prompt FROM
+    the tool definitions themselves, never a hand-maintained parallel
+    description; OpenAI's prompting guides name "prompt mentions
+    tools not in the tool list, descriptions contradict each other"
+    as a named anti-pattern, exactly this bug's shape.
+
+    Council finding (fable): don't name an OPT-IN tool group to a user
+    who lacks it (invites "why can't I" confusion) -- satisfied for
+    free here, since each blurb only ever appears when allowed_fn(ns)
+    is already True. meg-files areas (jobs/sales/legal/doclink) ARE
+    included for anyone who genuinely has them; that same "only
+    mention what's actually granted" rule covers them identically,
+    just via a separate module's own allowed(ns, area) check rather
+    than this file's _CAPABILITY_REGISTRY."""
+    blurbs = [blurb for _cid, allowed_fn, _schemas, blurb in _CAPABILITY_REGISTRY if allowed_fn(ns)]
+    if _megfiles is not None:
+        file_areas = [a for a in ("jobs", "sales", "legal") if _megfiles.allowed(ns, a)]
+        if file_areas:
+            blurbs.append(f"search real company files in the {', '.join(file_areas)} share(s) when asked")
+        if _megfiles.allowed(ns, "doclink"):
+            blurbs.append("look up scanned vendor invoices in DocLink when asked")
+    return blurbs
 
 
 def run_tool(name: str, args: dict, model: str, ns: str | None = None,
