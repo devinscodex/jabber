@@ -97,6 +97,14 @@ ADMIN_SETTINGS_PATH = Path(__file__).parent / "admin_settings.json"
 # Read fresh on every /api/changelog call, visible to ANY signed-in user
 # (not admin-gated, unlike everything else in this block).
 CHANGELOG_PATH = Path(__file__).parent / "changelog.json"
+VERSION_PATH = Path(__file__).parent / "VERSION"  # single source of truth for the
+# UI's version display -- 2026-11-23, real gap found (Devin): the v0.2.1
+# tag/changelog bump only updated the fossil-tracked copy, not the live
+# changelog.json on Leviathan, and separately the version number itself
+# was a hardcoded string baked into index.html with no relation to either
+# file, so there were 2 places to remember instead of 1. This file is the
+# one place now; /api/changelog reads it and the frontend renders it,
+# nothing hardcoded in HTML left to drift.
 # False-positive tracking for the Admin Panel's Flagged Conversations
 # table (2026-11-04, Devin: move confirmed false positives to their own
 # section, out of the flagged count/table). Keyed by a stable fingerprint
@@ -4156,7 +4164,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     entries = []
             except Exception:
                 entries = []
-            self._json(200, {"entries": entries})
+            try:
+                version = VERSION_PATH.read_text().strip()
+            except Exception:
+                version = ""
+            self._json(200, {"entries": entries, "version": version})
             return
         if self.path == "/api/admin/people":
             if not _is_admin(self.ns):
