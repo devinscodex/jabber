@@ -1106,7 +1106,7 @@ def sage_run_query(model: str, ns: str | None = None, database: str = "", sql: s
 SAGE_TOOL_SCHEMAS = [
     {"type": "function", "function": {
         "name": "sage_list_databases",
-        "description": "List Sage 100 Premium 2025 / DocLink company databases on DB02 that are actually readable (verified read access, not just visible). MAS_MNS is the main company (Org); MAS_MCO is Martin Construction; other MAS_* databases are not mainstream.",
+        "description": "List Sage 100 Premium 2025 / DocLink company databases on DB02 that are actually readable (verified read access, not just visible). MAS_MNS is the main company (Martin Energy Group); MAS_MCO is Martin Construction; other MAS_* databases are not mainstream.",
         "parameters": {"type": "object", "properties": {}},
     }},
     {"type": "function", "function": {
@@ -1267,7 +1267,7 @@ def wrike_recent_activity(model: str, ns: str | None = None, space: str = "", li
 # identity against <ns> before ever serving a byte -- same Cloudflare
 # Access identity this whole webui already trusts, not a new mechanism.
 DOWNLOADS_DIR = Path("/home/ai/levi-webui/downloads")
-DOWNLOADS_PUBLIC_BASE = "https://leviathan.example.com"  # real
+DOWNLOADS_PUBLIC_BASE = "https://leviathan.martinenergygroup.com"  # real
 # Cloudflare Tunnel hostname for this box, confirmed live 2026-10-21
 # (~/.cloudflared config: tunnel 81e98aa1-... -> 127.0.0.1:8420).
 
@@ -1282,13 +1282,116 @@ DOWNLOADS_PUBLIC_BASE = "https://leviathan.example.com"  # real
 # _office_disk_quota_ok's 200MB cap on DOWNLOADS_DIR content.
 LIBRARY_DIR = Path("/home/ai/levi-webui/library")
 
+_LIBRARY_MIME_BY_EXT = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".webp": "image/webp",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pdf": "application/pdf",
+}
 
-def _write_library(ns: str, filename: str, data: bytes) -> str:
+
+def _write_library(ns: str, filename: str, data: bytes, prompt: str = "",
+                    conv_id: str | None = None, library_project_id: str | None = None) -> str:
+    """Single real choke point for every _write_library producer (image
+    gen, doc/presentation/spreadsheet creators) -- council round
+    2026-11-19 (gilfoyle): sidecar .meta.json here, not re-derived per
+    caller, same discipline as this project's other single-call-site
+    fixes (verify_all_claims). conv_id/library_project_id added
+    2026-11-19 (fable: "it can't be backfilled later") -- both
+    server-injected only from the real conv object in scope at the
+    _chat_with_tools(_stream) call site, same discipline as
+    history_messages for edit_image; never accepted from the model's
+    own tool-call arguments, and absent (not a placeholder) when the
+    producing call genuinely has no conversation (e.g. a direct
+    library upload)."""
     token = secrets.token_urlsafe(16)
     dest_dir = LIBRARY_DIR / ns / token
     dest_dir.mkdir(parents=True, exist_ok=True)
     (dest_dir / filename).write_bytes(data)
+    ext = Path(filename).suffix.lower()
+    meta = {
+        "created_at": time.time(),
+        "filename": filename,
+        "mime": _LIBRARY_MIME_BY_EXT.get(ext, "application/octet-stream"),
+        "size": len(data),
+        "prompt": prompt,
+    }
+    if conv_id:
+        meta["source_conversation_id"] = conv_id
+    if library_project_id:
+        meta["project_id"] = library_project_id
+    (dest_dir / f"{filename}.meta.json").write_text(json.dumps(meta))
     return f"{DOWNLOADS_PUBLIC_BASE}/library/{ns}/{token}/{urllib.parse.quote(filename)}"
+
+
+def list_library(ns: str) -> list:
+    """Real listing, sidecar-only (gilfoyle Q3) -- never stats every raw
+    file, just globs the .meta.json index each _write_library call
+    already wrote. Items missing a sidecar (written before this feature
+    existed) are skipped, not crashed on -- old content stays reachable
+    only by its original chat-text link, same as always; nothing here
+    deletes or migrates it."""
+    items = []
+    ns_dir = LIBRARY_DIR / ns
+    if not ns_dir.is_dir():
+        return items
+    for meta_path in ns_dir.glob("*/*.meta.json"):
+        try:
+            meta = json.loads(meta_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        token = meta_path.parent.name
+        items.append({
+            "token": token,
+            "filename": meta.get("filename", meta_path.name[:-len(".meta.json")]),
+            "mime": meta.get("mime", "application/octet-stream"),
+            "size": meta.get("size", 0),
+            "created_at": meta.get("created_at", 0),
+            "prompt": meta.get("prompt", ""),
+            "source_conversation_id": meta.get("source_conversation_id", ""),
+            "project_id": meta.get("project_id", ""),
+            "url": f"{DOWNLOADS_PUBLIC_BASE}/library/{ns}/{token}/{urllib.parse.quote(meta.get('filename', ''))}",
+        })
+    items.sort(key=lambda m: m["created_at"], reverse=True)
+    return items
+
+
+def delete_library_item(ns: str, token: str) -> bool:
+    """Real delete -- LIBRARY_DIR has no age-based cleanup (2026-11-18
+    comment, by design), so this is the only way a user ever reclaims
+    one of these.
+
+    Real bug caught in gilfoyle's review before this shipped: the first
+    draft only checked the resolved path stayed under LIBRARY_DIR as a
+    whole, not under LIBRARY_DIR/<ns> specifically -- a token containing
+    "../other-ns/real-token" still resolved under LIBRARY_DIR and passed
+    that check, letting one user delete another user's library item.
+    token is server.py's raw http.server self.path tail, unescaped and
+    unnormalized -- never trust it as a bare path segment. Reject any
+    traversal/separator character outright, then require the resolved
+    parent be EXACTLY this ns's own directory, not just "somewhere under
+    the library root"."""
+    if not token or "/" in token or "\\" in token or token in (".", ".."):
+        return False
+    ns_dir = (LIBRARY_DIR / ns).resolve()
+    item_dir = LIBRARY_DIR / ns / token
+    try:
+        resolved = item_dir.resolve()
+    except (OSError, ValueError):
+        return False
+    if resolved.parent != ns_dir:
+        return False
+    if not resolved.is_dir():
+        return False
+    # No ignore_errors -- a second bug gilfoyle caught: swallowing every
+    # failure (permission denied, locked file) and still reporting
+    # success back to the client is worse than a crash, it's a silent
+    # wrong answer. Let a real failure raise; caller gets a 500, not a
+    # false "deleted": true.
+    shutil.rmtree(resolved)
+    return not resolved.exists()
 
 
 def wrike_download_attachment(model: str, ns: str | None = None, task_id: str = "", attachment_name: str | None = None) -> dict:
@@ -1430,6 +1533,23 @@ def _office_disk_quota_ok(ns: str, incoming_bytes: int, cap_bytes: int = 200 * 1
     return (total + incoming_bytes) <= cap_bytes
 
 
+def _library_disk_quota_ok(ns: str, incoming_bytes: int, cap_bytes: int = 2_000_000_000) -> bool:
+    """Per-ns disk quota for the library, same convention as
+    _office_disk_quota_ok above -- added 2026-11-19 (cyber-warden,
+    council round) after finding the direct /api/library/upload path
+    had no accumulated cap at all, only a per-request size limit (an
+    account could stay under that every call and accumulate unbounded
+    total storage over time). 2GB default -- generous, the library is
+    meant to persist long-term unlike the 48h downloads sweep, but
+    real and per-account rather than nothing. Sums real bytes already
+    under this user's own library dir."""
+    user_dir = LIBRARY_DIR / ns
+    if not user_dir.exists():
+        return True
+    total = sum(f.stat().st_size for f in user_dir.rglob("*") if f.is_file())
+    return (total + incoming_bytes) <= cap_bytes
+
+
 def _log_office_doc(model: str, ns: str | None, tool: str, detail: str, result: str = ""):
     log_path = OFFICE_DOCS_DIR / "office_docs_log.csv"
     outcome = "error" if str(result).startswith("Error:") else "ok"
@@ -1437,7 +1557,8 @@ def _log_office_doc(model: str, ns: str | None, tool: str, detail: str, result: 
         csv.writer(f).writerow([date.today().isoformat(), model, ns or "", tool, detail[:300], outcome])
 
 
-def create_spreadsheet(model: str, ns: str | None = None, filename: str = "", sheets: list | None = None) -> dict:
+def create_spreadsheet(model: str, ns: str | None = None, filename: str = "", sheets: list | None = None,
+                        conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     if not ns:
         return {"result": "Error: create_spreadsheet requires a real identity namespace, none provided"}
     sheets = sheets or []
@@ -1475,13 +1596,14 @@ def create_spreadsheet(model: str, ns: str | None = None, filename: str = "", sh
     wb.save(buf)
     data = buf.getvalue()
     fname = _slugify_filename(filename or sheets[0].get("name", ""), "spreadsheet", "xlsx")
-    url = _write_library(ns, fname, data)
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
     result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sheets)} sheet(s)). Library link (personal, no expiry, only works for your own account): {url}"
     _log_office_doc(model, ns, "create_spreadsheet", fname, result)
     return {"result": result}
 
 
-def create_document(model: str, ns: str | None = None, title: str = "", sections: list | None = None) -> dict:
+def create_document(model: str, ns: str | None = None, title: str = "", sections: list | None = None,
+                     conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     if not ns:
         return {"result": "Error: create_document requires a real identity namespace, none provided"}
     sections = sections or []
@@ -1511,13 +1633,14 @@ def create_document(model: str, ns: str | None = None, title: str = "", sections
     doc.save(buf)
     data = buf.getvalue()
     fname = _slugify_filename(title, "document", "docx")
-    url = _write_library(ns, fname, data)
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
     result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sections)} section(s)). Library link (personal, no expiry, only works for your own account): {url}"
     _log_office_doc(model, ns, "create_document", fname, result)
     return {"result": result}
 
 
-def create_presentation(model: str, ns: str | None = None, title: str = "", slides: list | None = None) -> dict:
+def create_presentation(model: str, ns: str | None = None, title: str = "", slides: list | None = None,
+                         conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     if not ns:
         return {"result": "Error: create_presentation requires a real identity namespace, none provided"}
     slides = slides or []
@@ -1557,7 +1680,7 @@ def create_presentation(model: str, ns: str | None = None, title: str = "", slid
     deck.save(buf)
     data = buf.getvalue()
     fname = _slugify_filename(title, "presentation", "pptx")
-    url = _write_library(ns, fname, data)
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
     result = f"Real file ready: {fname} ({len(data):,} bytes, {len(slides)} slide(s)). Library link (personal, no expiry, only works for your own account): {url}"
     _log_office_doc(model, ns, "create_presentation", fname, result)
     return {"result": result}
@@ -1720,7 +1843,8 @@ def _log_image_gen(model: str, ns: str | None, tool: str, detail: str, result: s
         csv.writer(f).writerow([date.today().isoformat(), model, ns or "", tool, detail[:300], outcome])
 
 
-def _run_qwen_image(mode: str, ns: str, prompt: str, input_bytes: bytes | None = None) -> dict:
+def _run_qwen_image(mode: str, ns: str, prompt: str, input_bytes: bytes | None = None,
+                     conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     """Shared subprocess call for generate_image/edit_image. Returns
     {"result": str} on error/block, or {"result": str, "images": [...]}
     with a real download link + capped inline preview on success."""
@@ -1784,7 +1908,7 @@ def _run_qwen_image(mode: str, ns: str, prompt: str, input_bytes: bytes | None =
 
         data = out_path.read_bytes()
         fname = _slugify_filename(prompt[:40], "image", "png")
-        url = _write_library(ns, fname, data)
+        url = _write_library(ns, fname, data, prompt=prompt, conv_id=conv_id, library_project_id=library_project_id)
         result = (f"Real image ready: {fname} ({parsed['width']}x{parsed['height']}, "
                   f"{len(data):,} bytes, generated in {parsed.get('gen_seconds', '?')}s). "
                   f"Library link (personal, no expiry, only works for your own account): {url}")
@@ -1837,18 +1961,20 @@ def _last_pasted_image(history_messages: list | None) -> bytes | None:
     return None
 
 
-def generate_image(model: str, ns: str | None = None, prompt: str = "") -> dict:
+def generate_image(model: str, ns: str | None = None, prompt: str = "",
+                    conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     if not ns:
         return {"result": "Error: generate_image requires a real identity namespace, none provided"}
     if not prompt:
         return {"result": "Error: prompt is required"}
-    out = _run_qwen_image("generate", ns, prompt)
+    out = _run_qwen_image("generate", ns, prompt, conv_id=conv_id, library_project_id=library_project_id)
     _log_image_gen(model, ns, "generate_image", prompt[:200], out["result"])
     return out
 
 
 def edit_image(model: str, ns: str | None = None, project_id: str = "", path: str = "",
-                prompt: str = "", history_messages: list | None = None) -> dict:
+                prompt: str = "", history_messages: list | None = None,
+                conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     if not ns:
         return {"result": "Error: edit_image requires a real identity namespace, none provided"}
     if not prompt:
@@ -1889,7 +2015,7 @@ def edit_image(model: str, ns: str | None = None, project_id: str = "", path: st
         except Exception as e:
             return {"result": f"Error: the pasted/uploaded image is not valid: {e}"}
         source_desc = "a pasted/uploaded image from this conversation"
-    out = _run_qwen_image("edit", ns, prompt, input_bytes=raw)
+    out = _run_qwen_image("edit", ns, prompt, input_bytes=raw, conv_id=conv_id, library_project_id=library_project_id)
     _log_image_gen(model, ns, "edit_image", f"{source_desc}: {prompt[:150]}", out["result"])
     return out
 
@@ -1948,7 +2074,8 @@ def get_tool_schemas(ns: str | None) -> list:
 
 
 def run_tool(name: str, args: dict, model: str, ns: str | None = None,
-             tool_calls_made: list | None = None, history_messages: list | None = None) -> dict:
+             tool_calls_made: list | None = None, history_messages: list | None = None,
+             conv_id: str | None = None, library_project_id: str | None = None) -> dict:
     if name in _SAGE_TOOL_NAMES:
         # Gated here too, not just in get_tool_schemas -- never trust
         # that hiding a schema is the only thing stopping a call; a
@@ -1981,7 +2108,7 @@ def run_tool(name: str, args: dict, model: str, ns: str | None = None,
             return {"error": f"{name} is not available for this account"}
         fn = OFFICE_DISPATCH[name]
         try:
-            return fn(model=model, ns=ns, **args)
+            return fn(model=model, ns=ns, conv_id=conv_id, library_project_id=library_project_id, **args)
         except Exception as e:
             return {"error": f"{name} failed: {e}"}
     if name in _IMAGE_GEN_TOOL_NAMES:
@@ -2000,8 +2127,9 @@ def run_tool(name: str, args: dict, model: str, ns: str | None = None,
                 # the model omits project_id/path. Server-injected only,
                 # same discipline as ns -- never accepted from the
                 # model's own tool-call arguments.
-                return fn(model=model, ns=ns, history_messages=history_messages, **args)
-            return fn(model=model, ns=ns, **args)
+                return fn(model=model, ns=ns, history_messages=history_messages,
+                          conv_id=conv_id, library_project_id=library_project_id, **args)
+            return fn(model=model, ns=ns, conv_id=conv_id, library_project_id=library_project_id, **args)
         except Exception as e:
             return {"error": f"{name} failed: {e}"}
     if _megfiles is not None and name in _megfiles.DISPATCH:
@@ -2308,9 +2436,174 @@ def verify_access_claims(content: str, tool_calls_made: list) -> str:
 
 
 def verify_all_claims(content: str, tool_calls_made: list) -> str:
-    """Sage identifier check, then the access-claim check. Single call site for server.py."""
+    """Sage identifier check, then the access-claim check, then the
+    image-link backstop. Single call site for server.py."""
     content = verify_sage_claims(content, collect_real_sage_identifiers(tool_calls_made))
-    return verify_access_claims(content, tool_calls_made)
+    content = verify_access_claims(content, tool_calls_made)
+    return verify_image_links(content, tool_calls_made)
+
+
+_IMAGE_LIBRARY_URL_RE = re.compile(r"https://\S+/library/\S+")
+
+
+def verify_image_links(content: str, tool_calls_made: list) -> str:
+    """Real incident, 2026-11-19 (confirmed via two real users' actual
+    conversation data, SME council review incl. Grok -- a documented
+    failure class, "post-tool-call hallucination"/ToolHACE): a
+    successful generate_image/edit_image call returns a real download
+    URL in its result text, but the model is not reliably echoing that
+    URL into its own final reply -- one real user got it right every
+    time, a second real user's one successful generation never
+    surfaced the link at all, leaving a real generated image the user
+    could never find.
+
+    Bound to THIS turn's own tool_calls_made list ONLY, never a
+    shared/global "last generated image" pointer (cyber-warden's
+    explicit requirement, same council -- tool_calls_made is built
+    fresh per call to _chat_with_tools/_chat_with_tools_stream, so
+    there is no cross-user link-leak path here). Appends one line per
+    MISSING link, for every successful call this turn, not just the
+    most recent (gilfoyle's explicit requirement, same council).
+
+    Does NOT address the separate, more damaging gap (the model
+    claiming a generation happened without ever calling the tool at
+    all) -- there is no tool call to read a link from in that case,
+    so nothing here can catch it; that needs its own fix."""
+    missing = []
+    for call in tool_calls_made or []:
+        if call.get("name") not in ("generate_image", "edit_image"):
+            continue
+        output = call.get("output") or {}
+        if not isinstance(output, dict) or not output.get("images"):
+            continue  # failed/blocked call -- nothing real to link
+        result = str(output.get("result", ""))
+        m = _IMAGE_LIBRARY_URL_RE.search(result)
+        if not m:
+            continue
+        url = m.group(0).rstrip(").,\"'")
+        if url in content:
+            continue
+        fname = url.rsplit("/", 1)[-1]
+        missing.append(f"[Download {fname}]({url})")
+    if not missing:
+        return content
+    sep = "\n\n" if content.strip() else ""
+    return content + sep + "\n".join(missing)
+
+
+def fabricated_image_links(content: str, ns: str) -> list:
+    """Real incident, 2026-11-19 (ddwight's own 'image gen' conversation,
+    found live): the model wrote a /library/ URL in its OWN reply text
+    that was never returned by any real tool call this turn --
+    a fabricated markdown link, immediately followed in the SAME
+    message by the model admitting it needed real tool calls first.
+    Clicking the link hit the real /library/ route's own 400 (expected
+    ns/token/filename) -- confirmed from server logs, the user-visible
+    symptom that surfaced this.
+
+    First draft checked the URL against the current turn's
+    tool_calls_made, which gilfoyle's review correctly killed as a real
+    false positive (a legitimate "send that link again" re-reference to
+    an EARLIER turn's real image). Second draft tried to patch that by
+    also scanning conversation history -- gilfoyle's second pass found
+    that still breaks under context trimming, misses user-pasted real
+    URLs, and only covers two hardcoded tool names.
+
+    Real fix: check the one thing that's actually ground truth,
+    independent of any history or tool-name list -- does ns/token/
+    filename exist ON DISK, right now, under THIS requesting user's own
+    ns. Same path-safety shape delete_library_item already uses
+    (reject traversal chars outright, require the resolved parent be
+    exactly LIBRARY_DIR/ns, never a looser LIBRARY_DIR-wide prefix
+    check). A URL that doesn't parse to that shape, or whose file isn't
+    really there, is fabricated by construction -- no case where a
+    genuinely real link gets flagged, regardless of which tool wrote it
+    or how old the conversation is."""
+    ns_dir = (LIBRARY_DIR / ns).resolve()
+    found_fake = []
+    for m in _IMAGE_LIBRARY_URL_RE.finditer(content):
+        # Wider trailing-punctuation strip than verify_image_links'
+        # own (gilfoyle review) -- a URL immediately followed by prose
+        # punctuation with no space ("...cat.png? nice, right") must
+        # not have that punctuation become part of the parsed filename,
+        # or a genuinely real link fails is_file() and false-positives.
+        url = m.group(0).rstrip(").,\"'?!:;*_]")
+        try:
+            tail = url.split("/library/", 1)[1]
+        except IndexError:
+            found_fake.append(url)
+            continue
+        parts = urllib.parse.unquote(tail).split("/", 2)
+        if len(parts) != 3 or not all(parts):
+            found_fake.append(url)
+            continue
+        url_ns, token, filename = parts
+        if url_ns != ns or "/" in token or "\\" in token or token in (".", ".."):
+            found_fake.append(url)
+            continue
+        try:
+            resolved = (LIBRARY_DIR / url_ns / token / filename).resolve()
+        except (OSError, ValueError):
+            found_fake.append(url)
+            continue
+        if resolved.parent.parent != ns_dir or not resolved.is_file():
+            found_fake.append(url)
+    return found_fake
+
+
+# Shadow/log-only signal, council round 2, 2026-11-19 -- the SECOND,
+# separate, more damaging gap confirmed from the same real incident:
+# the model claiming an image generation happened/is happening WITHOUT
+# ever calling generate_image/edit_image this turn (3 of 4 "here's your
+# concept" moments in the real conversation were this, not the
+# link-echo bug verify_image_links above fixes). Full 5-leg SME council
+# review (gilfoyle/cyber-warden/meg-advisor/fable/Grok) converged:
+# the regex+tool-call-absence shape is architecturally right (matches
+# real production patterns -- deterministic check + narrow trigger,
+# per Grok's cited precedent), but measured test coverage (4 true
+# positives from one real incident's wording, 0/55 false positives on
+# an unrelated real corpus) gives only a Wilson 95% upper bound of
+# ~6.5% true false-positive rate -- NOT enough confidence to force a
+# live retry yet. LOG ONLY. Never alters final_content. Promote to a
+# real blocking gate only once real shadow data confirms the false-
+# positive rate is actually low in practice.
+#
+# An image-request precondition on the CURRENT turn's user message was
+# tried and reverted -- it broke all 4 real true positives, because in
+# a real multi-turn conversation the original image request is often
+# several turns earlier (e.g. "ok send it" doesn't itself look like a
+# request). Revisit narrowing once real shadow data exists to design
+# it against, not before.
+_IMG_PROGRESS_RE = re.compile(
+    r"\b(generating|rendering|spinning up|creating|producing)\b.{0,40}"
+    r"\b(image|images|mockup|mockups|concept|concepts|visual|visuals|wrap|render|rendering|"
+    r"illustration|illustrations|picture|pictures|graphic|graphics|artwork|scene|scenes)s?\b",
+    re.I,
+)
+_IMG_READY_RE = re.compile(
+    r"\bhere(?:'s| is) (?:your|the)\b.{0,30}\b(?:concept|mockup|design|wrap|image|render)"
+    r"|\btake a look at this one when it finishes rendering"
+    r"|\bsending (?:it|them|these|this) through the (?:image )?render",
+    re.I,
+)
+
+
+def log_image_claim_without_call(content: str, tool_calls_made: list, model: str, ns: str | None) -> None:
+    """Shadow-logs when `content` reads like a claimed image-generation
+    action but no generate_image/edit_image call exists in
+    tool_calls_made this turn. Side-effecting only -- never returns
+    anything for the caller to use, never alters the reply. Appends to
+    the existing IMAGE_GEN_LOG CSV (same file verify_image_links'
+    sibling, generate_image/edit_image, already write to) so all
+    image-pipeline signal stays in one place."""
+    did_call = any(c.get("name") in ("generate_image", "edit_image") for c in (tool_calls_made or []))
+    if did_call:
+        return
+    text = content or ""
+    m = _IMG_PROGRESS_RE.search(text) or _IMG_READY_RE.search(text)
+    if not m:
+        return
+    _log_image_gen(model, ns, "shadow_claim_without_call", m.group(0)[:150])
 
 
 # Harness-owned error handling (2026-10-20, WORSE incident than the

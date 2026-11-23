@@ -1,5 +1,20 @@
 [
   {
+    "date": "2026-11-23",
+    "title": "Projects got their own page",
+    "body": "Clicking a project now opens a real page for it instead of a settings popup -- recent chats, instructions, and files for that project all live there, with a composer to start a new chat right from it."
+  },
+  {
+    "date": "2026-11-23",
+    "title": "Upload files straight into your library",
+    "body": "You can now add a file directly to your personal library, not just inside a project."
+  },
+  {
+    "date": "2026-11-23",
+    "title": "Faster, more complete file searches",
+    "body": "Searching company files for several keywords, or across every area at once, now takes one search instead of many, so broad sweeps finish faster and cover more ground. Jabber also now remembers what it already searched when you ask it to keep going, so saying continue picks up where it left off instead of starting over."
+  },
+  {
     "date": "2026-11-19",
     "title": "Generate and edit images right in chat",
     "body": "Ask for an image and it'll actually generate one, or paste/upload a photo and ask for changes -- recolor, add or remove something, restyle it. Works for pilot accounts."

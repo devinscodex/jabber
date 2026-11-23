@@ -286,6 +286,140 @@ body.dash-collapsed .dash{ padding:0; overflow:hidden; border:none; }
 .sidebar-section-header.collapsed .chev{ transform: rotate(-90deg); }
 .sidebar-section-header:hover .label{ color: var(--ink-soft); }
 .sidebar-section-body.collapsed{ display:none; }
+
+/* ===== Library view (2026-11-19) -- real browsable gallery for
+   _write_library's output (generate_image/edit_image + the doc/
+   presentation/spreadsheet creators), closing the real confirmed gap:
+   no listing UI existed anywhere before this, only one-off chat-text
+   links. Council-reviewed design (gilfoyle/cyber-warden/meg-advisor/
+   fable/Grok, 2026-11-19): reuses this file's own existing --bg-2/
+   --card/--line/--ink tokens, not a separate palette. ===== */
+.library-navlink{
+  width:100%; padding:.5rem .6rem; border-radius:8px; border:none; background:transparent;
+  color: var(--ink-soft); font-size:.85rem; cursor:pointer; text-align:left; margin-bottom:10px;
+  display:flex; align-items:center; gap:8px;
+}
+.library-navlink:hover{ background: var(--bg-2); color: var(--ink); }
+.library-navlink.active{ background: var(--bg-2); color: var(--ink); font-weight:600; }
+.library-view{ display:none; flex-direction:column; height:100%; padding:24px 30px; overflow-y:auto; }
+.library-view.open{ display:flex; }
+.library-toprow{ display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.library-toprow h2{ margin:0; font-size:1.1rem; flex:none; }
+.library-search{
+  flex:1; max-width:380px; background: var(--bg-2); border:1px solid var(--line); border-radius:9px;
+  padding:7px 12px; font-size:.82rem; display:flex; align-items:center; gap:7px; color: var(--ink-faint);
+}
+.library-search input{ flex:1; background:none; border:none; outline:none; color: var(--ink); font-size:.82rem; }
+.library-search input::placeholder{ color: var(--ink-faint); }
+.library-filterbtn{
+  width:32px; height:32px; border-radius:8px; border:1px solid var(--line); background: var(--bg-2);
+  color: var(--ink-soft); cursor:pointer; font-size:.9rem; flex:none;
+}
+.library-filterbtn:hover{ border-color: var(--moss-solid); }
+.library-uploadbtn{
+  flex:none; padding:7px 14px; border-radius:8px; border:1px solid var(--line); background: var(--bg-2);
+  color: var(--ink); font-size:.82rem; cursor:pointer;
+}
+.library-uploadbtn:hover{ border-color: var(--moss-solid); }
+.library-tabs{ display:flex; gap:6px; margin-bottom:16px; }
+.lib-tab{
+  padding:6px 14px; border-radius:20px; border:1px solid transparent; background:none;
+  color: var(--ink-soft); font-size:.84rem; cursor:pointer;
+}
+.lib-tab:hover{ background: var(--bg-2); }
+.lib-tab.active{ background: var(--bg-2); border-color: var(--line); color: var(--ink); font-weight:600; }
+.library-section + .library-section{ margin-top:22px; }
+.library-section h3{ margin:0 0 12px; font-size:.82rem; font-weight:600; color: var(--ink-soft); }
+.library-sectiongrid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap:14px; }
+.library-grid{ display:block; }
+
+/* ===== Project page (2026-11-19, Grok-imitation, Devin-approved mockup) ===
+   Replaces the old project-settings modal entirely -- Recent/Instructions/
+   Files now live here as real tabs instead of a separate overlay. Same
+   show/hide-via-.open convention as .library-view. */
+.project-view{ display:none; flex-direction:column; align-items:center; height:100%; padding:70px 30px 30px; overflow-y:auto; }
+.project-view.open{ display:flex; }
+.project-view h1{ font-size:1.7rem; font-weight:600; margin:0 0 22px; display:flex; align-items:center; gap:10px; }
+.proj-composer{ width:100%; max-width:720px; }
+.proj-tabs{ display:flex; align-items:center; gap:6px; margin:20px 0 16px; width:100%; max-width:720px; }
+.ptab{
+  padding:.45rem 1rem; border-radius:20px; border:1px solid transparent; background:transparent;
+  color:var(--ink-faint); font-size:.86rem; cursor:pointer; font-weight:500; font-family:inherit;
+}
+.ptab:hover{ background: var(--bg-2); }
+.ptab.active{ background: var(--bg-2); border-color: var(--line); color: var(--ink); font-weight:600; }
+.proj-addtab{
+  margin-left:auto; width:28px; height:28px; border-radius:50%; border:1px solid var(--line);
+  background:transparent; color:var(--ink-faint); cursor:pointer; position:relative; font-size:.95rem;
+}
+.proj-addtab:hover{ background: var(--bg-2); }
+.proj-addctx{
+  position:absolute; top:34px; right:0; background:var(--card); border:1px solid var(--line);
+  border-radius:10px; padding:6px; min-width:150px; display:none; z-index:5; text-align:left;
+}
+.proj-addctx.open{ display:block; }
+.proj-addctx .pac-item{ display:flex; gap:8px; align-items:center; padding:7px 8px; border-radius:7px; font-size:.84rem; cursor:pointer; }
+.proj-addctx .pac-item:hover{ background: var(--bg-3); }
+.proj-tabpanel{ width:100%; max-width:720px; }
+.proj-row{
+  display:flex; align-items:center; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line);
+  cursor:pointer; font-size:.88rem;
+}
+.proj-row:last-child{ border-bottom:none; }
+.proj-row:hover{ color: rgb(var(--moss)); }
+.proj-row .pr-dot{ width:6px; height:6px; border-radius:50%; background:var(--ink-faint); flex:none; }
+.proj-row .pr-icon{ color:var(--ink-faint); flex:none; }
+.proj-row .pr-title{ flex:1; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.proj-row .pr-ts{ color:var(--ink-faint); font-size:.8rem; flex:none; }
+.proj-more{ padding:11px 2px; color:var(--ink-faint); font-size:.86rem; cursor:pointer; }
+.proj-instr-row{ display:flex; gap:10px; align-items:flex-start; font-size:.92rem; color:var(--ink-soft); line-height:1.5; cursor:pointer; }
+.proj-instr-row:hover{ color:var(--ink); }
+.proj-instr-edit textarea{
+  width:100%; background: var(--bg-2); color:var(--ink); border:1px solid var(--line); border-radius:8px;
+  padding:.5rem .6rem; font-family:inherit; font-size:.88rem; resize:vertical;
+}
+.proj-instr-edit{ display:flex; flex-direction:column; gap:8px; width:100%; }
+.proj-crumb{ font-size:.78rem; color:var(--ink-faint); margin-bottom:8px; cursor:pointer; }
+.proj-files-actions{ display:flex; gap:8px; margin-bottom:12px; }
+.library-card{
+  background: var(--card); border:1px solid var(--line); border-radius:11px; position:relative; cursor:pointer;
+}
+.library-card:hover{ border-color: var(--moss-solid); }
+.library-card .lc-thumb{
+  aspect-ratio:1/1; background: var(--bg-3); border-radius:11px 11px 0 0; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+}
+.library-card .lc-thumb img{ width:100%; height:100%; object-fit:cover; }
+.library-card .lc-thumb .lc-noimg{ font-size:1.6rem; color: var(--ink-faint); }
+.lc-filethumb span{ font-size:2rem; }
+.library-card .lc-meta{ padding:7px 9px; }
+.library-card .lc-meta .lc-name{ font-size:.76rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.library-card .lc-meta .lc-sub{ font-size:.66rem; color: var(--ink-faint); margin-top:2px; }
+.library-card .lc-menubtn{
+  position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:6px;
+  background: rgba(0,0,0,.5); color:#fff; display:none; align-items:center; justify-content:center;
+  font-size:.78rem; cursor:pointer; z-index:2;
+}
+.library-card:hover .lc-menubtn{ display:flex; }
+.library-ctxmenu{
+  position:absolute; top:32px; right:6px; background: var(--card); border:1px solid var(--line);
+  border-radius:8px; box-shadow:0 8px 20px rgba(0,0,0,.3); min-width:130px; z-index:3; padding:4px;
+}
+.library-ctxmenu .lc-item{ padding:7px 11px; font-size:.78rem; border-radius:5px; cursor:pointer; color: var(--ink-soft); }
+.library-ctxmenu .lc-item:hover{ background: var(--bg-2); color: var(--ink); }
+.library-ctxmenu .lc-item.danger{ color:#c0392b; }
+.library-empty{ color: var(--ink-faint); font-size:.85rem; padding:30px 0; text-align:center; }
+.library-filterpanel{
+  align-self:flex-end; background: var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:12px; width:200px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,.25);
+}
+.library-filterpanel .lf-row{ margin-bottom:10px; }
+.library-filterpanel .lf-row:last-child{ margin-bottom:0; }
+.library-filterpanel label{ display:block; font-size:.68rem; color: var(--ink-faint); margin-bottom:4px; }
+.library-filterpanel select{
+  width:100%; background: var(--bg-3); border:1px solid var(--line); border-radius:6px;
+  padding:5px 7px; font-size:.76rem; color: var(--ink);
+}
 .conv-group-label{ font-size:.65rem; text-transform:uppercase; letter-spacing:.05em; color: var(--ink-faint); margin: 12px 6px 5px; }
 .conv{ padding:.42rem .6rem; border-radius:6px; font-size:.82rem; color: var(--ink-soft); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   display:flex; align-items:center; justify-content:space-between; gap:6px; }
@@ -919,6 +1053,32 @@ body.bg-grid-on:not([data-theme^="martin"]) .chat::before{
 .pending-dots span:nth-child(2){ animation-delay:.15s; }
 .pending-dots span:nth-child(3){ animation-delay:.3s; }
 
+/* ===== tool-in-progress indicator (2026-11-19) -- real gap Devin named
+   live: a tool call (esp. generate_image, a real 45-75s wait) had NO
+   signal at all between being dispatched and finishing -- the plain
+   "Thinking" dots above never updated, so a genuinely long wait read
+   as "nothing happens, just waiting." CSS-only (no GIF asset, matches
+   this file's own self-written/no-CDN doctrine for markdown/syntax
+   highlighting) -- a visible colored pulse plus real descriptive text,
+   not just 3 small gray dots, since this covers waits long enough that
+   a subtle animation alone wasn't a strong enough signal. */
+.tool-progress{
+  display:inline-flex; align-items:center; gap:8px; color: var(--ink-soft); font-size:.86rem;
+}
+.tool-progress .tp-dot{
+  width:9px; height:9px; border-radius:50%; background: var(--moss-solid); flex:none;
+  animation: tp-pulse 1.3s ease-in-out infinite;
+}
+@keyframes tp-pulse{
+  0%{ transform:scale(1); opacity:.55; }
+  50%{ transform:scale(1.35); opacity:1; box-shadow:0 0 6px 1px var(--moss-solid); }
+  100%{ transform:scale(1); opacity:.55; }
+}
+.conv-loading{
+  display:flex; align-items:center; gap:10px; justify-content:center; height:100%;
+  color: var(--ink-soft); font-size:.9rem;
+}
+
 /* ===== empty-state hero (2026-08-17) -- shown when a chat has no
    messages yet, replaces the old static "New chat -- say the word"
    bubble. Same centered-brand-plus-prompt-chips shape as Claude.ai/
@@ -969,9 +1129,10 @@ body.bg-grid-on:not([data-theme^="martin"]) .chat::before{
 /* ===== settings view (left-nav) -- 2026-10-31 ===== */
 .sx-shell{display:flex;width:min(1080px,96vw);height:min(720px,88vh);background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;color:var(--ink);}
 /* Main Settings panel is a full window, not a centered modal (2026-11-02,
-   Devin's ask). Scoped by ID -- the project-settings/icon-picker popups
-   below (#projectSettingsOverlay, #projIconOverlay) still share the
-   generic .settings-overlay/.settings-panel classes and keep their
+   Devin's ask). Scoped by ID -- the icon-picker popup below (#projIconOverlay,
+   the project-settings overlay it used to reference was retired 2026-11-19,
+   replaced by the real project page) still shares the generic
+   .settings-overlay/.settings-panel classes and keeps its
    original small centered-dialog look; only #settingsOverlay's shape
    changes, via higher ID specificity overriding the shared class rules
    above (including inside the narrow-viewport media query further down,
@@ -1231,7 +1392,7 @@ sup.cite a{padding:4px 3px;}
          2026-09-14: "no legitimate Org-pilot use, no admin-surface
          exposure"), so the button was a dead UI element pointing at a
          feature real pilot users can't use. Ouroboros's own webui/
-         keeps the button; this is an Org-fork-only removal. -->
+         keeps the button; this is a Org-fork-only removal. -->
     <!-- The ⚙ Preferences button that used to sit here moved down to the
          user identity chip at the bottom of the sidebar, 2026-11-02
          (Devin's ask, matching Grok's own pattern: click your account
@@ -1247,6 +1408,11 @@ sup.cite a{padding:4px 3px;}
       <input class="search-input" type="text" placeholder="Search conversations…" id="searchBox">
     </div>
     <button class="newchat" id="newChatBtn"><span class="nav-icon" style="color:inherit">+</span> New chat</button>
+
+    <!-- Library nav link (2026-11-19) -- placed right under New chat,
+         matching Grok's own sidebar order (New chat, Library, then
+         Projects/Chats below) per Devin's reference screenshots. -->
+    <button class="library-navlink" id="libraryNavBtn" onclick="showLibrary()">▤ Library</button>
 
     <div class="sidebar-section-header" id="projectsHeader" onclick="toggleSidebarSection('projects')">
       <span class="label"><span class="chev">▾</span> Projects</span>
@@ -1284,56 +1450,44 @@ sup.cite a{padding:4px 3px;}
   </div>
 </div>
 
-<div class="settings-overlay" id="projectSettingsOverlay">
-  <div class="settings-panel" style="width:520px">
-    <h2>Project settings</h2>
-    <div class="sub">Files, instructions, and folder link for this project.</div>
-    <input type="hidden" id="projSettingsId">
-
-    <div class="settings-section">
-      <h4>Name</h4>
-      <input type="text" id="projSettingsName" class="model-select" style="width:100%;max-width:none">
+<!-- Project page (2026-11-19, Grok-imitation) -- replaces the old
+     project-settings modal entirely. Composer reuses .inputrow/.sendbtn/
+     .attachbtn verbatim (same real send pipeline, just pre-scoped to
+     this project), not a new input mechanism. -->
+<div class="project-view" id="projectView">
+  <h1 id="projPageName"></h1>
+  <div class="proj-composer">
+    <div class="inputrow">
+      <button class="attachbtn" id="projPageAttachBtn" title="Attach a local file">📎</button>
+      <textarea id="projPageInput" rows="1" placeholder="Ask, create images, or build anything&hellip;"></textarea>
+      <button class="sendbtn" id="projPageSendBtn">↑</button>
     </div>
-
-    <div class="settings-section">
-      <h4>Instructions</h4>
-      <div class="desc" style="margin-bottom:6px">Folded into the system prompt for every chat in this project -- same idea as Claude/ChatGPT Projects' custom instructions.</div>
-      <textarea id="projSettingsInstructions" rows="4" style="width:100%;background:var(--bg-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:.5rem .6rem;font-family:inherit;font-size:.82rem;resize:vertical"></textarea>
-    </div>
-
-    <div class="settings-section">
-      <h4>Project files</h4>
-      <!-- Real simplification 2026-08-17 (Devin: "let's remove the
-           'server side' projects") -- upload is now the ONLY way a
-           project gets files, not one of two confusable options. A
-           host-path link (typed or browsed) always meant Ouroboros's own
-           disk, which read as "your files" right up until you dialed in
-           from anywhere else -- real confusion, caught live, removed
-           outright rather than just relabeled. -->
-      <div class="settings-row">
-        <span id="projSettingsFolderPath" style="font-size:.8rem;color:var(--ink-soft);word-break:break-all"></span>
-        <span id="projSettingsClearBtn" style="cursor:pointer;flex:none;display:none" onclick="clearProjectFiles()">Clear</span>
+  </div>
+  <div class="proj-tabs">
+    <button class="ptab active" data-ptab="recent" onclick="setProjTab('recent')">Recent</button>
+    <button class="ptab" data-ptab="instructions" onclick="setProjTab('instructions')">Instructions</button>
+    <button class="ptab" data-ptab="files" onclick="setProjTab('files')">Files</button>
+    <button class="proj-addtab" onclick="toggleProjAddCtx(event)">+
+      <div class="proj-addctx" id="projAddCtxMenu">
+        <div class="pac-item" onclick="event.stopPropagation();setProjTab('files');document.getElementById('projPageUploadFiles').click()">📎 Files</div>
+        <div class="pac-item" onclick="event.stopPropagation();setProjTab('instructions')">✎ Instructions</div>
       </div>
-      <div class="desc" style="margin-top:4px">Real native picker, reads client-side on YOUR device -- a one-time snapshot copy, not a live link. Re-upload to refresh after editing locally. The model's own list_project_folder/read_project_file tools, and the browser below, are scoped to this snapshot, read-only.</div>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="settings-close" style="margin:0;width:auto;padding:.4rem .8rem;font-size:.78rem" onclick="document.getElementById('projSettingsUploadFolderInput').click()">📁 Upload a folder</button>
-        <button class="settings-close" style="margin:0;width:auto;padding:.4rem .8rem;font-size:.78rem" onclick="document.getElementById('projSettingsUploadFilesInput').click()">📄 Upload files</button>
-      </div>
-      <input type="file" id="projSettingsUploadFolderInput" webkitdirectory multiple style="display:none">
-      <input type="file" id="projSettingsUploadFilesInput" multiple style="display:none">
-      <div class="desc" id="projSettingsUploadStatus" style="margin-top:6px"></div>
+    </button>
+  </div>
+
+  <div class="proj-tabpanel" id="projPanelRecent"></div>
+
+  <div class="proj-tabpanel" id="projPanelInstructions" style="display:none"></div>
+
+  <div class="proj-tabpanel" id="projPanelFiles" style="display:none">
+    <div class="proj-files-actions">
+      <button class="settings-close" style="margin:0;width:auto;padding:.4rem .8rem;font-size:.78rem" onclick="document.getElementById('projPageUploadFolder').click()">📁 Upload a folder</button>
+      <button class="settings-close" style="margin:0;width:auto;padding:.4rem .8rem;font-size:.78rem" onclick="document.getElementById('projPageUploadFiles').click()">📄 Upload files</button>
     </div>
-
-    <div class="settings-section">
-      <h4>Files</h4>
-      <div id="projSettingsFiles" class="projfiles" style="margin-left:0"><div class="pf-empty">Nothing uploaded yet.</div></div>
-    </div>
-
-    <div class="settings-section" id="projSettingsStatus" style="font-size:.78rem;color:var(--ink-faint)"></div>
-
-    <button class="settings-close" onclick="saveProjectSettings()">Save</button>
-    <button class="settings-close" style="margin-top:8px;border-color:#c0392b;color:#c0392b" onclick="deleteProjectFromSettings()">Delete project</button>
-    <button class="settings-close" style="margin-top:8px" onclick="document.getElementById('projectSettingsOverlay').classList.remove('open')">Close</button>
+    <input type="file" id="projPageUploadFolder" webkitdirectory multiple style="display:none">
+    <input type="file" id="projPageUploadFiles" multiple style="display:none">
+    <div class="desc" id="projPageUploadStatus" style="margin-bottom:10px"></div>
+    <div id="projPageFilesBox"></div>
   </div>
 </div>
 
@@ -1387,6 +1541,44 @@ sup.cite a{padding:4px 3px;}
     </div>
     <div class="inputhint" id="chatInputHint">📎 or drag files in to attach them to the current project, or paste a screenshot directly into the chat</div>
   </div>
+</div>
+
+<!-- Library view (2026-11-19) -- sibling of .chat, same show/hide
+     toggle convention as #hero/#messages. Search placeholder is just
+     "Search" per Devin's own review of the mockup. Tabs + date-group
+     headers + Upload files added 2026-11-19 per the real Grok Library
+     reference screenshot Devin shared -- date grouping reuses the same
+     dateBucket() the Chats sidebar already uses, not a new scheme. -->
+<div class="library-view" id="libraryView">
+  <div class="library-toprow">
+    <h2>Library</h2>
+    <div class="library-search">🔍 <input type="text" id="librarySearchBox" placeholder="Search" oninput="renderLibraryGrid()"></div>
+    <button class="library-filterbtn" id="libraryFilterBtn" onclick="toggleLibraryFilter()">⚙</button>
+    <button class="library-uploadbtn" onclick="document.getElementById('libraryUploadInput').click()">Upload files</button>
+    <input type="file" id="libraryUploadInput" multiple style="display:none" onchange="uploadToLibrary(this.files); this.value='';">
+  </div>
+  <div class="library-tabs" id="libraryTabs">
+    <button class="lib-tab active" data-tab="all" onclick="setLibTab('all')">All</button>
+    <button class="lib-tab" data-tab="media" onclick="setLibTab('media')">Media</button>
+    <button class="lib-tab" data-tab="files" onclick="setLibTab('files')">Files</button>
+  </div>
+  <div class="library-filterpanel" id="libraryFilterPanel" style="display:none">
+    <div class="lf-row">
+      <label>Sort by</label>
+      <select id="libSortBy" onchange="updateLibSortOrderOptions();renderLibraryGrid()">
+        <option value="date">Date created</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    <div class="lf-row">
+      <label>Order</label>
+      <select id="libSortOrder" onchange="renderLibraryGrid()">
+        <option value="desc">Newest first</option>
+        <option value="asc">Oldest first</option>
+      </select>
+    </div>
+  </div>
+  <div class="library-grid" id="libraryGrid"></div>
 </div>
 
 <script>
@@ -1652,6 +1844,7 @@ function renderProjList() {
     menuBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       openCtxMenu(menuBtn, [
+        { icon: '📂', label: 'Open project', onClick: () => openProjectPage(p.id) },
         { icon: '✎', label: 'Rename', onClick: () => renameProject(p) },
         // Real icon+color picker (Phase 2, 2026-10-26) -- Devin
         // overrode the 5-leg review's "color swatches only" call and
@@ -1661,29 +1854,20 @@ function renderProjList() {
         // openProjectIconPicker/EMOJI_PALETTE above and
         // _valid_project_icon in server.py).
         { icon: '🎨', label: 'Edit icon', onClick: () => openProjectIconPicker(p) },
-        { icon: '⚙', label: 'Settings', onClick: () => openProjectSettings(p.id) },
         { divider: true },
         { icon: '🗑', label: 'Delete', danger: true, onClick: () => deleteProjectQuick(p) },
       ]);
     });
     row.appendChild(menuBtn);
 
-    // Single click on the row body = filter to this project's
-    // conversations AND scope new chats to it (Devin's correction
-    // 2026-08-17, preserved as-is) -- the chevron and the "..." menu are
-    // separate controls and must not also trigger this.
+    // Single click on the row body opens the real project page directly
+    // (2026-11-19, Devin's ask -- same entry point as the "Open project"
+    // menu item). The chevron keeps its own independent expand/collapse
+    // (still useful to peek at nested chats without leaving the
+    // sidebar); the "..." menu is excluded too, same as always.
     row.addEventListener('click', (e) => {
       if (e.target.closest('.proj-chevron') || e.target.closest('.rowmenubtn')) return;
-      // 2026-11-11, Devin: clicking the row now toggles its own inline
-      // expand directly (same effect as the chevron -- kept as a second,
-      // explicit target below) rather than also scoping the separate
-      // Chats list, which no longer filters by project at all. Still
-      // sets currentProjectId so "New chat"/file-attach keep scoping to
-      // the selected project -- that behavior is unrelated to the list
-      // display and Devin didn't ask to change it.
-      currentProjectId = p.id;
-      expandedProjects[p.id] = !expandedProjects[p.id];
-      renderProjList();
+      openProjectPage(p.id);
     });
     wrap.appendChild(row);
 
@@ -1766,19 +1950,9 @@ async function deleteProjectQuick(p) {
 // Files section reads straight from the UI-facing GET endpoints
 // (server.py), same read-only/traversal-safe logic the model's own
 // list_project_folder/read_project_file tools already enforce.
-let projSettingsCwd = '.';
-
-function renderProjSettingsFolderLabel(proj) {
-  const pathEl = document.getElementById('projSettingsFolderPath');
-  const clearBtn = document.getElementById('projSettingsClearBtn');
-  if (!proj.linked_folder) {
-    pathEl.textContent = 'Nothing uploaded yet';
-    clearBtn.style.display = 'none';
-  } else {
-    pathEl.textContent = '📤 Uploaded snapshot from your device';
-    clearBtn.style.display = '';
-  }
-}
+let projPageId = null;
+let projPageCwd = '.';
+let projPageTab = 'recent';
 
 // ===== client-side upload (2026-08-17, Devin: "can we swap this to the
 // client's local machine", then "let's remove the 'server side'
@@ -1918,120 +2092,141 @@ async function readAndUploadFiles(projId, fileList) {
   }
 }
 
-async function uploadFileList(fileList) {
-  const projId = document.getElementById('projSettingsId').value;
-  const status = document.getElementById('projSettingsUploadStatus');
-  if (!fileList.length) return;
-  status.textContent = `Reading ${fileList.length} file(s)…`;
-  const result = await readAndUploadFiles(projId, fileList);
-  if (!result.ok) { status.textContent = result.note; return; }
-  const skippedNote = result.skipped
-    ? ` (${result.skipped} skipped -- binary or over the size cap)` : '';
-  status.textContent = `Uploaded ${result.written} file(s).${skippedNote}`;
-  const projResp = await fetch(`/api/projects/${projId}`);
-  const proj = await projResp.json();
-  renderProjSettingsFolderLabel(proj);
-  projSettingsCwd = '.';
-  await loadProjectFiles(projId);
-  await loadProjects();
-  renderProjList();
-}
-
-async function clearProjectFiles() {
-  const projId = document.getElementById('projSettingsId').value;
-  const status = document.getElementById('projSettingsUploadStatus');
-  if (!confirm('Clear this project\'s uploaded files? Cannot be undone.')) return;
-  status.textContent = 'Clearing…';
-  try {
-    const resp = await fetch(`/api/projects/${projId}/clear-files`, { method: 'POST' });
-    const proj = await resp.json();
-    renderProjSettingsFolderLabel(proj);
-    status.textContent = 'Cleared.';
-    projSettingsCwd = '.';
-    await loadProjectFiles(projId);
-    await loadProjects();
-    renderProjList();
-  } catch (e) {
-    status.textContent = 'Could not reach the server.';
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const folderInput = document.getElementById('projSettingsUploadFolderInput');
-  const filesInput = document.getElementById('projSettingsUploadFilesInput');
-  if (folderInput) folderInput.addEventListener('change', () => {
-    const list = Array.from(folderInput.files || []);
-    folderInput.value = ''; // reset so picking the same folder again still fires 'change'
-    uploadFileList(list);
-  });
-  if (filesInput) filesInput.addEventListener('change', () => {
-    const list = Array.from(filesInput.files || []);
-    filesInput.value = '';
-    uploadFileList(list);
-  });
-});
-
-async function openProjectSettings(projId) {
-  document.getElementById('projSettingsId').value = projId;
-  document.getElementById('projSettingsStatus').textContent = 'Loading…';
-  document.getElementById('projectSettingsOverlay').classList.add('open');
+async function openProjectPage(projId) {
+  // Replaces the old project-settings modal (2026-11-19, Devin-approved
+  // mockup, Grok's own project page as the reference) -- Recent/
+  // Instructions/Files now live as real tabs on their own page instead
+  // of a separate overlay.
+  hideLibrary();
+  document.getElementById('chatDropZone').style.display = 'none';
+  projPageId = projId;
+  projPageCwd = '.';
+  currentConvId = null;
+  currentProjectId = projId;
+  document.getElementById('projectView').classList.add('open');
+  document.getElementById('projPageName').textContent = 'Loading…';
   try {
     const resp = await fetch(`/api/projects/${projId}`);
     const proj = await resp.json();
-    if (proj.error) { document.getElementById('projSettingsStatus').textContent = proj.error; return; }
-    document.getElementById('projSettingsName').value = proj.name || '';
-    document.getElementById('projSettingsInstructions').value = proj.instructions || '';
-    renderProjSettingsFolderLabel(proj);
-    document.getElementById('projSettingsStatus').textContent = '';
-    document.getElementById('projSettingsUploadStatus').textContent = '';
-    projSettingsCwd = '.';
-    await loadProjectFiles(projId);
+    if (proj.error) { document.getElementById('projPageName').textContent = proj.error; return; }
+    document.getElementById('projPageName').textContent = (proj.icon ? proj.icon + ' ' : '') + (proj.name || '');
+    projPageProj = proj;
   } catch (e) {
-    document.getElementById('projSettingsStatus').textContent = 'Could not reach the server.';
+    document.getElementById('projPageName').textContent = 'Could not reach the server.';
+    return;
   }
+  setProjTab('recent');
+  renderProjList();
+}
+function hideProjectPage() {
+  document.getElementById('projectView').classList.remove('open');
+}
+let projPageProj = null;
+
+function setProjTab(tab) {
+  projPageTab = tab;
+  document.querySelectorAll('#projectView .ptab[data-ptab]').forEach(b => b.classList.toggle('active', b.dataset.ptab === tab));
+  ['recent', 'instructions', 'files'].forEach(t => {
+    document.getElementById('projPanel' + t[0].toUpperCase() + t.slice(1)).style.display = (t === tab) ? '' : 'none';
+  });
+  if (tab === 'recent') renderProjPageRecent();
+  else if (tab === 'instructions') renderProjPageInstructions();
+  else if (tab === 'files') loadProjPageFiles();
+}
+function toggleProjAddCtx(e) {
+  e.stopPropagation();
+  document.getElementById('projAddCtxMenu').classList.toggle('open');
+}
+document.addEventListener('click', () => document.getElementById('projAddCtxMenu')?.classList.remove('open'));
+
+function renderProjPageRecent() {
+  const box = document.getElementById('projPanelRecent');
+  const convs = (allConvs || []).filter(c => c.project_id === projPageId)
+    .sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  if (!convs.length) { box.innerHTML = ''; box.appendChild(pfEmpty('No conversations yet')); return; }
+  box.innerHTML = '';
+  convs.slice(0, 20).forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'proj-row';
+    const dot = document.createElement('span'); dot.className = 'pr-dot';
+    const title = document.createElement('span'); title.className = 'pr-title'; title.textContent = c.title || 'New chat';
+    const ts = document.createElement('span'); ts.className = 'pr-ts'; ts.textContent = fmtLibDate(c.updated || c.created);
+    row.appendChild(dot); row.appendChild(title); row.appendChild(ts);
+    row.addEventListener('click', () => { hideProjectPage(); loadConversation(c.id); });
+    box.appendChild(row);
+  });
 }
 
-async function loadProjectFiles(projId) {
-  const box = document.getElementById('projSettingsFiles');
+function renderProjPageInstructions() {
+  const box = document.getElementById('projPanelInstructions');
+  box.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'proj-instr-row';
+  row.innerHTML = `✎ <span>${(projPageProj && projPageProj.instructions) || 'No instructions yet -- click to add some.'}</span>`;
+  row.addEventListener('click', () => {
+    box.innerHTML = '';
+    const edit = document.createElement('div');
+    edit.className = 'proj-instr-edit';
+    const ta = document.createElement('textarea');
+    ta.rows = 5;
+    ta.value = (projPageProj && projPageProj.instructions) || '';
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'settings-close';
+    saveBtn.style.cssText = 'margin:0;width:auto;padding:.4rem .8rem;font-size:.78rem';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.textContent = 'Saving…';
+      try {
+        await fetch(`/api/projects/${projPageId}/update`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instructions: ta.value }),
+        });
+        if (projPageProj) projPageProj.instructions = ta.value;
+      } catch (e) {}
+      renderProjPageInstructions();
+    });
+    edit.appendChild(ta);
+    edit.appendChild(saveBtn);
+    box.appendChild(edit);
+    ta.focus();
+  });
+  box.appendChild(row);
+}
+
+async function loadProjPageFiles() {
+  const box = document.getElementById('projPageFilesBox');
   box.innerHTML = '<div class="pf-empty">Loading…</div>';
   try {
-    const resp = await fetch(`/api/projects/${projId}/files?path=${encodeURIComponent(projSettingsCwd)}`);
+    const resp = await fetch(`/api/projects/${projPageId}/files?path=${encodeURIComponent(projPageCwd)}`);
     const data = await resp.json();
     if (data.error) { box.innerHTML = ''; box.appendChild(pfEmpty(data.error)); return; }
     box.innerHTML = '';
-    if (projSettingsCwd !== '.') {
+    if (projPageCwd !== '.') {
       const crumb = document.createElement('div');
-      crumb.className = 'pf-crumb';
+      crumb.className = 'proj-crumb';
       const root = document.createElement('span');
       root.textContent = 'root';
-      root.addEventListener('click', () => { projSettingsCwd = '.'; loadProjectFiles(projId); });
+      root.addEventListener('click', () => { projPageCwd = '.'; loadProjPageFiles(); });
       crumb.appendChild(root);
-      crumb.appendChild(document.createTextNode(' / ' + projSettingsCwd));
+      crumb.appendChild(document.createTextNode(' / ' + projPageCwd));
       box.appendChild(crumb);
     }
     const entries = data.entries || [];
-    if (!entries.length) {
-      box.appendChild(pfEmpty('Empty folder'));
-    }
-    // Real DOM construction, not innerHTML+onclick-attribute strings
-    // (2026-08-17 bug fix, Devin: "local files isn't working quite
-    // right") -- the prior version built onclick="..." via
-    // JSON.stringify(path), and JSON.stringify always wraps a string in
-    // DOUBLE quotes, the exact same delimiter the onclick attribute
-    // itself uses. That broke every single row, not just ones with
-    // unusual filenames -- real filesystem names (spaces, apostrophes,
-    // anything) were never the actual risk here, the mechanism itself
-    // was broken by construction. addEventListener + textContent can't
-    // have this bug class at all, real filenames included.
+    if (!entries.length) box.appendChild(pfEmpty('Nothing uploaded yet'));
+    // Real DOM construction, not innerHTML+onclick strings -- same fix
+    // class as the old modal's file browser (2026-08-17 bug: JSON.stringify
+    // always double-quotes, the exact delimiter onclick="..." itself uses).
     for (const name of entries) {
       const isDir = name.endsWith('/');
-      const nextPath = projSettingsCwd === '.' ? name.replace(/\/$/, '') : `${projSettingsCwd}/${name.replace(/\/$/, '')}`;
+      const nextPath = projPageCwd === '.' ? name.replace(/\/$/, '') : `${projPageCwd}/${name.replace(/\/$/, '')}`;
       const row = document.createElement('div');
-      row.className = 'pf-entry';
-      row.textContent = (isDir ? '📁 ' : '📄 ') + name;
+      row.className = 'proj-row';
+      const icon = document.createElement('span'); icon.className = 'pr-icon'; icon.textContent = isDir ? '📁' : '📄';
+      const title = document.createElement('span'); title.className = 'pr-title'; title.textContent = name;
+      row.appendChild(icon); row.appendChild(title);
       row.addEventListener('click', () => {
-        if (isDir) { projSettingsCwd = nextPath; loadProjectFiles(projId); }
-        else { openFilePreview(projId, nextPath); }
+        if (isDir) { projPageCwd = nextPath; loadProjPageFiles(); }
+        else { openFilePreview(projPageId, nextPath); }
       });
       box.appendChild(row);
     }
@@ -2042,6 +2237,36 @@ async function loadProjectFiles(projId) {
   }
 }
 
+async function uploadToProjPage(fileList) {
+  const status = document.getElementById('projPageUploadStatus');
+  if (!fileList.length) return;
+  status.textContent = `Reading ${fileList.length} file(s)…`;
+  const result = await readAndUploadFiles(projPageId, fileList);
+  if (!result.ok) { status.textContent = result.note; return; }
+  const skippedNote = result.skipped
+    ? ` (${result.skipped} skipped -- binary or over the size cap)` : '';
+  status.textContent = `Uploaded ${result.written} file(s).${skippedNote}`;
+  projPageCwd = '.';
+  await loadProjPageFiles();
+  await loadProjects();
+  renderProjList();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const folderInput = document.getElementById('projPageUploadFolder');
+  const filesInput = document.getElementById('projPageUploadFiles');
+  if (folderInput) folderInput.addEventListener('change', () => {
+    const list = Array.from(folderInput.files || []);
+    folderInput.value = ''; // reset so picking the same folder again still fires 'change'
+    uploadToProjPage(list);
+  });
+  if (filesInput) filesInput.addEventListener('change', () => {
+    const list = Array.from(filesInput.files || []);
+    filesInput.value = '';
+    uploadToProjPage(list);
+  });
+});
+
 function pfEmpty(text) {
   const div = document.createElement('div');
   div.className = 'pf-empty';
@@ -2049,39 +2274,22 @@ function pfEmpty(text) {
   return div;
 }
 
-async function saveProjectSettings() {
-  const projId = document.getElementById('projSettingsId').value;
-  const status = document.getElementById('projSettingsStatus');
-  status.textContent = 'Saving…';
-  try {
-    const resp = await fetch(`/api/projects/${projId}/update`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: document.getElementById('projSettingsName').value,
-        instructions: document.getElementById('projSettingsInstructions').value,
-      }),
-    });
-    const data = await resp.json();
-    if (data.error) { status.textContent = 'Error: ' + data.error; return; }
-    status.textContent = 'Saved.';
-    await loadProjects();
-    renderProjList();
-  } catch (e) {
-    status.textContent = 'Could not reach the server.';
-  }
+async function sendProjPageMessage() {
+  // Reuses the real chat send pipeline verbatim -- sets the typed text
+  // into the real #inputBox, lets startNewChat()+sendMessage() do
+  // everything they already do (conversation creation, project_id
+  // scoping via currentProjectId, streaming), rather than a parallel
+  // send mechanism for this page specifically.
+  const text = document.getElementById('projPageInput').value.trim();
+  if (!text) return;
+  document.getElementById('projPageInput').value = '';
+  hideProjectPage();
+  currentProjectId = projPageId;
+  await startNewChat();
+  inputBox.value = text;
+  sendMessage();
 }
 
-async function deleteProjectFromSettings() {
-  const projId = document.getElementById('projSettingsId').value;
-  const name = document.getElementById('projSettingsName').value;
-  if (!confirm(`Delete project "${name}"? Its conversations stay, just become unfiled. Cannot be undone.`)) return;
-  try { await fetch(`/api/projects/${projId}`, { method: 'DELETE' }); } catch (e) {}
-  document.getElementById('projectSettingsOverlay').classList.remove('open');
-  if (currentProjectId === projId) currentProjectId = null;
-  await loadProjects();
-  renderProjList();
-  renderConvList();
-}
 
 async function openFilePreview(projId, path) {
   const overlay = document.getElementById('filePreviewOverlay');
@@ -2404,6 +2612,33 @@ async function editMessage(btn) {
 function pendingDotsHtml() {
   return 'Thinking <span class="pending-dots"><span></span><span></span><span></span></span>';
 }
+
+// Real per-tool wording for the tool-progress indicator (2026-11-19) --
+// generate_image/edit_image specifically call out the real wait (45-75s
+// measured) since that's the exact case that read as "nothing happens."
+const TOOL_PROGRESS_LABELS = {
+  generate_image: 'Generating image&hellip; (usually 45&ndash;75s)',
+  edit_image: 'Editing image&hellip; (usually 45&ndash;75s)',
+  web_search: 'Searching the web&hellip;',
+  create_document: 'Building the document&hellip;',
+  create_presentation: 'Building the presentation&hellip;',
+  create_spreadsheet: 'Building the spreadsheet&hellip;',
+};
+
+// Real gap, 2026-11-19 (council round: gilfoyle+meg-advisor converged
+// independently) -- a generate_image/create_document/etc. call in
+// flight was invisible in the Library grid until the full tool call
+// finished and the user happened to reopen/refresh the view; a user
+// who checked mid-generation saw nothing and could reasonably assume
+// it failed. pendingLibraryGen tracks the one in-flight library-
+// producing call for the CURRENT turn (realistically one at a time --
+// these tools run sequentially inside one streaming turn, never in
+// parallel); set on tool_call_start, cleared on the matching tool_call
+// completion or on error/exception, never left dangling.
+const LIBRARY_PRODUCING_TOOLS = new Set([
+  'generate_image', 'edit_image', 'create_document', 'create_presentation', 'create_spreadsheet',
+]);
+let pendingLibraryGen = null;
 
 // Sticky-scroll helper (2026-11-04, council round 2 -- Devin: streaming
 // locks the scrollbar to the bottom, fighting anyone trying to scroll up
@@ -2811,6 +3046,204 @@ function hideHero() {
   document.getElementById('hero').style.display = 'none';
   messagesEl.style.display = '';
 }
+
+// ===== Library view (2026-11-19) ============================================
+let allLibraryItems = [];
+function showLibrary() {
+  hideProjectPage();
+  document.getElementById('chatDropZone').style.display = 'none';
+  document.getElementById('libraryView').classList.add('open');
+  document.getElementById('libraryNavBtn').classList.add('active');
+  currentConvId = null;
+  loadLibrary();
+}
+function hideLibrary() {
+  document.getElementById('chatDropZone').style.display = '';
+  document.getElementById('libraryView').classList.remove('open');
+  document.getElementById('libraryNavBtn').classList.remove('active');
+}
+let libraryTab = 'all';
+function setLibTab(tab) {
+  libraryTab = tab;
+  document.querySelectorAll('#libraryTabs .lib-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  renderLibraryGrid();
+}
+async function loadLibrary() {
+  try {
+    const resp = await fetch('/api/library?limit=100');
+    if (!resp.ok) { allLibraryItems = []; renderLibraryGrid(); return; }
+    const data = await resp.json();
+    allLibraryItems = data.items || [];
+  } catch (e) {
+    allLibraryItems = [];
+  }
+  renderLibraryGrid();
+}
+async function uploadToLibrary(fileList) {
+  // Real gap vs. the Grok reference's "Upload files" button -- there
+  // was no way to add a file to the personal library directly (only
+  // project-scoped upload existed). Mirrors readAndUploadFiles' own
+  // base64 read, posts to the new /api/library/upload endpoint.
+  if (!fileList || !fileList.length) return;
+  const files = [];
+  for (const f of Array.from(fileList)) {
+    const buf = await f.arrayBuffer();
+    const b64 = btoa(new Uint8Array(buf).reduce((s, b) => s + String.fromCharCode(b), ''));
+    files.push({ path: f.name, content_b64: b64 });
+  }
+  const grid = document.getElementById('libraryGrid');
+  grid.insertAdjacentHTML('afterbegin', '<div class="library-empty" id="libUploadStatus">Uploading&hellip;</div>');
+  try {
+    const resp = await fetch('/api/library/upload', { method: 'POST', body: JSON.stringify({ files }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'upload failed');
+  } catch (e) {
+    alert('Upload failed: ' + e.message);
+  }
+  document.getElementById('libUploadStatus')?.remove();
+  await loadLibrary();
+}
+function fmtLibDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today, ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+function libMediaCard(it, i) {
+  const isImg = it.mime.startsWith('image/');
+  const thumb = isImg
+    ? `<img src="${it.url}" loading="lazy" alt="">`
+    : `<span class="lc-noimg">📄</span>`;
+  return `<div class="library-card">
+    <div class="lc-thumb" onclick="window.open('${it.url}','_blank')">${thumb}</div>
+    <div class="lc-menubtn" onclick="event.stopPropagation();toggleLibCtxMenu(${i})">⋮</div>
+    <div class="library-ctxmenu" id="libCtx${i}" style="display:none">
+      <div class="lc-item" onclick="event.stopPropagation();downloadLibItem('${it.url}')">Download</div>
+      <div class="lc-item danger" onclick="event.stopPropagation();deleteLibItem('${it.token}')">Delete</div>
+    </div>
+    <div class="lc-meta"><div class="lc-name">${it.filename}</div><div class="lc-sub">${fmtLibDate(it.created_at)}</div></div>
+  </div>`;
+}
+function libFileCard(p) {
+  // Files tab = the real project/linked-folder objects already loaded
+  // app-wide in allProjects, same ones the sidebar renders -- not a
+  // new data source. Click-through opens the real project page
+  // (2026-11-19, replaces the old settings-overlay click-through).
+  const icon = p.icon || '📁';
+  return `<div class="library-card lib-file-card" onclick="openProjectPage('${p.id}')">
+    <div class="lc-thumb lc-filethumb" style="background:${p.color || 'var(--moss-dim)'}"><span>${icon}</span></div>
+    <div class="lc-meta"><div class="lc-name">${p.name}</div><div class="lc-sub">${fmtLibDate(p.created)}</div></div>
+  </div>`;
+}
+function libPendingCard() {
+  // In-flight placeholder, 2026-11-19 -- reuses the same .tool-progress/
+  // .tp-dot pulse already built for the chat-side indicator, so this
+  // is the same visual language, not a new pattern. No thumb, no
+  // click target, no context menu -- there's genuinely nothing to
+  // open yet.
+  return `<div class="library-card lib-pending-card">
+    <div class="lc-thumb"><span class="tool-progress"><span class="tp-dot"></span></span></div>
+    <div class="lc-meta"><div class="lc-name">${pendingLibraryGen.label.replace(/&hellip;.*$/, '').trim()}</div><div class="lc-sub">Generating now</div></div>
+  </div>`;
+}
+function renderLibraryGrid() {
+  const filter = (document.getElementById('librarySearchBox').value || '').toLowerCase();
+  const grid = document.getElementById('libraryGrid');
+  const sortBy = document.getElementById('libSortBy')?.value || 'date';
+  const sortOrder = document.getElementById('libSortOrder')?.value || 'desc';
+  const showPending = pendingLibraryGen && libraryTab !== 'files' && !filter;
+
+  let media = libraryTab === 'files' ? [] : allLibraryItems.filter(it =>
+    !filter || it.filename.toLowerCase().includes(filter) || (it.prompt || '').toLowerCase().includes(filter));
+  let files = libraryTab === 'media' ? [] : (allProjects || []).filter(p =>
+    !filter || p.name.toLowerCase().includes(filter));
+
+  if (media.length === 0 && files.length === 0 && !showPending) {
+    grid.innerHTML = `<div class="library-empty">${
+      libraryTab === 'files' ? 'No projects yet.' : 'Nothing here yet -- things you generate or upload will show up here.'
+    }</div>`;
+    return;
+  }
+
+  // Real sort (2026-11-19, filter-panel build) -- Name sort shows one
+  // flat list (date headers would be meaningless against an alphabetic
+  // order); Date sort keeps the section headers but flips section +
+  // in-section order for Oldest-first.
+  const cmpName = (a, b, key) => a[key].localeCompare(b[key]) * (sortOrder === 'asc' ? 1 : -1);
+  if (sortBy === 'name') {
+    media = [...media].sort((a, b) => cmpName(a, b, 'filename'));
+    files = [...files].sort((a, b) => cmpName(a, b, 'name'));
+    const cards = [...media.map((it, i) => libMediaCard(it, i)), ...files.map(libFileCard)];
+    if (showPending) cards.unshift(libPendingCard());
+    grid.innerHTML = `<div class="library-section"><div class="library-sectiongrid">${cards.join('')}</div></div>`;
+    return;
+  }
+
+  // Date-grouped sections (Today / Yesterday / This week / Older),
+  // same dateBucket() the Chats sidebar already groups by -- matches
+  // the real Grok reference's "Today" / "Earlier" section headers
+  // instead of one flat grid.
+  const dateCmp = (a, b) => ((a.created_at || 0) - (b.created_at || 0)) * (sortOrder === 'asc' ? 1 : -1);
+  media = [...media].sort(dateCmp);
+  const groups = new Map();
+  media.forEach((it, i) => {
+    const b = dateBucket(it.created_at);
+    if (!groups.has(b)) groups.set(b, []);
+    groups.get(b).push(libMediaCard(it, i));
+  });
+  if (files.length) {
+    const b = 'Projects';
+    if (!groups.has(b)) groups.set(b, []);
+    files.forEach(p => groups.get(b).push(libFileCard(p)));
+  }
+  if (showPending) {
+    // An in-flight generation is definitionally happening now --
+    // always goes in Today, created if this is the only item so far.
+    if (!groups.has('Today')) groups.set('Today', []);
+    groups.get('Today').unshift(libPendingCard());
+  }
+  let order = ['Today', 'Yesterday', 'This week', 'Older', 'Projects'];
+  if (sortOrder === 'asc') order = order.slice().reverse();
+  grid.innerHTML = order.filter(b => groups.has(b)).map(b =>
+    `<div class="library-section"><h3>${b}</h3><div class="library-sectiongrid">${groups.get(b).join('')}</div></div>`
+  ).join('');
+}
+function toggleLibCtxMenu(i) {
+  document.querySelectorAll('.library-ctxmenu').forEach(m => { if (m.id !== 'libCtx'+i) m.style.display = 'none'; });
+  const m = document.getElementById('libCtx'+i);
+  m.style.display = m.style.display === 'block' ? 'none' : 'block';
+}
+document.addEventListener('click', () => document.querySelectorAll('.library-ctxmenu').forEach(m => m.style.display = 'none'));
+function downloadLibItem(url) {
+  const a = document.createElement('a');
+  a.href = url; a.download = '';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function deleteLibItem(token) {
+  if (!confirm('Delete this item? This cannot be undone.')) return;
+  try {
+    const resp = await fetch('/api/library/' + encodeURIComponent(token), { method: 'DELETE' });
+    if (!resp.ok) { alert('Could not delete -- Beacon unreachable or item already gone.'); return; }
+    await loadLibrary();
+  } catch (e) { alert('Could not delete -- Beacon unreachable?'); }
+}
+function toggleLibraryFilter() {
+  const p = document.getElementById('libraryFilterPanel');
+  p.style.display = p.style.display === 'block' ? 'none' : 'block';
+}
+function updateLibSortOrderOptions() {
+  // Real content for the filter panel (2026-11-19) -- it rendered as
+  // a blank styled box before (Devin, live screenshot): CSS existed
+  // for lf-row/label/select but nothing was ever put inside it. Order
+  // labels flip meaning depending on Sort by, so swap them here rather
+  // than show "Newest/Oldest" while sorting by Name.
+  const byName = document.getElementById('libSortBy').value === 'name';
+  const order = document.getElementById('libSortOrder');
+  order.innerHTML = byName
+    ? '<option value="asc">A-Z</option><option value="desc">Z-A</option>'
+    : '<option value="desc">Newest first</option><option value="asc">Oldest first</option>';
+}
 function startChipPrompt(text) {
   inputBox.value = text;
   autoResizeInput();
@@ -3149,10 +3582,25 @@ if (inputBox) {
 }
 
 async function loadConversation(id) {
+  hideLibrary();
+  hideProjectPage();
   if (isMobileView()) document.body.classList.add('sidebar-collapsed');
+  // Real gap, 2026-11-19 (Devin, live): clicking a conversation showed
+  // literally nothing different until the whole fetch resolved -- for
+  // a conversation that's grown large (big pasted images push some
+  // past several MB), that's a real multi-second wait with zero
+  // feedback, indistinguishable from the click not registering.
+  // Sidebar highlight + a loading state now happen BEFORE the fetch,
+  // not after -- same "something is happening" discipline as the
+  // tool-progress indicator built earlier today.
+  currentConvId = id;
+  renderConvList();
+  renderProjList();
+  hideHero();
+  messagesEl.innerHTML = '<div class="conv-loading"><span class="tp-dot"></span>Loading conversation&hellip;</div>';
   try {
     const resp = await fetch('/api/conversations/' + id);
-    if (!resp.ok) return;
+    if (!resp.ok) { messagesEl.innerHTML = ''; showHero(); return; }
     const conv = await resp.json();
     currentConvId = conv.id;
     // Real fix, 2026-10-08 (gilfoyle review finding) -- currentProjectId
@@ -3176,12 +3624,19 @@ async function loadConversation(id) {
     renderConvList();
     renderProjList();
   } catch (e) {
-    // Ollama/server unreachable -- leave the current view as-is rather
-    // than blank the chat on a transient network error.
+    // Real gap, 2026-11-19: the ORIGINAL comment here said "leave the
+    // current view as-is" -- true when messagesEl was untouched until
+    // success. Now that the loading placeholder replaces it up front,
+    // a genuine network failure needs its own fallback, not a
+    // permanently stuck "Loading conversation..." message.
+    messagesEl.innerHTML = '';
+    showHero();
   }
 }
 
 async function startNewChat() {
+  hideLibrary();
+  hideProjectPage();
   currentConvId = null;
   messagesEl.innerHTML = '';
   showHero();
@@ -3266,7 +3721,22 @@ async function sendMessage() {
         let evt;
         try { evt = JSON.parse(line); } catch (e) { continue; }
 
-        if (evt.type === 'thinking_delta') {
+        if (evt.type === 'tool_call_start') {
+          // Real gap, 2026-11-19 (Devin, live): "nothing happens, just
+          // waiting" during a tool call, worst with generate_image's
+          // real 45-75s wait -- there was no server signal at all
+          // between dispatch and completion. This fires the moment
+          // tools.run_tool is actually called, server-side, not after.
+          const stick = isNearBottom(messagesEl);
+          const label = TOOL_PROGRESS_LABELS[evt.name] || `Running ${evt.name}...`;
+          pending.querySelector('.bubble').innerHTML =
+            `<span class="tool-progress"><span class="tp-dot"></span>${label}</span>`;
+          if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
+          if (LIBRARY_PRODUCING_TOOLS.has(evt.name)) {
+            pendingLibraryGen = { name: evt.name, label };
+            if (document.getElementById('libraryView').classList.contains('open')) renderLibraryGrid();
+          }
+        } else if (evt.type === 'thinking_delta') {
           const stick = isNearBottom(messagesEl);
           if (!thinkingEl) {
             thinkingStartMs = performance.now();
@@ -3340,6 +3810,10 @@ async function sendMessage() {
           const labelEl = activityEl.querySelector('.thinking-label');
           if (labelEl) labelEl.textContent = `Working (${secs}s)`;
           if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
+          if (pendingLibraryGen && pendingLibraryGen.name === evt.name) {
+            pendingLibraryGen = null;
+            if (document.getElementById('libraryView').classList.contains('open')) loadLibrary();
+          }
         } else if (evt.type === 'done') {
           const whoEl = pending.querySelector('.who');
           const nameEl = whoEl.querySelector('.msg-name') || whoEl;
@@ -3390,6 +3864,14 @@ async function sendMessage() {
     }
   } catch (e) {
     pending.querySelector('.bubble').textContent = 'Error: could not reach the local server (' + e + ')';
+  }
+  // Safety-net clear, 2026-11-19 -- covers the error/exception paths
+  // above (an errored or interrupted tool_call_start never gets a
+  // matching tool_call completion event), so a failed generation
+  // can't leave a permanent ghost placeholder in the Library grid.
+  if (pendingLibraryGen) {
+    pendingLibraryGen = null;
+    if (document.getElementById('libraryView').classList.contains('open')) renderLibraryGrid();
   }
   sendBtn.disabled = false;
   inputBox.focus();
@@ -3704,6 +4186,20 @@ inputBox.addEventListener('keydown', (e) => {
     sendMessage();
   }
 });
+
+// Project page composer -- its own elements, but funnels into the exact
+// same sendMessage() pipeline via sendProjPageMessage() above. Attach
+// reuses the real shared chatAttachInput picker directly (same
+// pendingImages state sendMessage() already consumes), not a second
+// attach mechanism.
+document.getElementById('projPageSendBtn').addEventListener('click', sendProjPageMessage);
+document.getElementById('projPageInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendProjPageMessage();
+  }
+});
+document.getElementById('projPageAttachBtn').addEventListener('click', () => chatAttachInput.click());
 
 // Auto-grow textarea (2026-08-17) -- same feel as Claude/ChatGPT's input
 // box: starts at one line, grows with content up to the CSS max-height

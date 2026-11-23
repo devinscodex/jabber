@@ -536,7 +536,7 @@ def _admin_overview() -> dict:
     """Read-only snapshot. Namespace roster is the UNION of (a) every
     real conversation directory and (b) every namespace appearing in any
     MCP allowlist -- a user can be allowlisted before ever opening the
-    chat (real case: carol/dave on Wrike, zero conversations), and
+    chat (real case: nmoesch/svogt on Wrike, zero conversations), and
     omitting them would hide a live access grant from the admin view."""
     namespaces = set()
     conv_counts = {}
@@ -1376,6 +1376,54 @@ def _project_instructions(conv: dict, ns: str) -> str | None:
     )
     custom = proj.get("instructions") or None
     return f"{header}\n\n{custom}" if custom else header
+
+
+def _merge_search_ledger(conv: dict, tool_calls_made: list) -> list:
+    """Real fix, 2026-11-23 (a real user report, live incident -- council round): a
+    broad meg_files_search sweep repeatedly hit MAX_TOOL_ROUNDS, and
+    "continue" from the user started a fresh turn with NO memory of
+    which area/pattern pairs were already tried (fable, council round --
+    persisted assistant messages only ever kept content+ts, never the
+    tool-call ledger), so real rounds got re-spent rediscovering the
+    same ground instead of covering new keywords/areas. Cumulative
+    (area, pattern) pairs across the WHOLE conversation, not just this
+    turn -- each new assistant message carries the full running list so
+    _search_ledger_note below never needs to scan more than the single
+    most recent assistant message."""
+    prior = []
+    for m in reversed(conv.get("messages", [])):
+        if m.get("role") == "assistant" and m.get("search_ledger"):
+            prior = m["search_ledger"]
+            break
+    seen = {tuple(e) for e in prior}
+    merged = [list(e) for e in prior]
+    for call in tool_calls_made or []:
+        if call.get("name") != "meg_files_search":
+            continue
+        args = call.get("args") or {}
+        pair = (args.get("area", ""), args.get("pattern", ""))
+        if pair[1] and pair not in seen:
+            seen.add(pair)
+            merged.append(list(pair))
+    return merged
+
+
+def _search_ledger_note(conv: dict) -> str | None:
+    """Reads back whatever ledger the LAST assistant message carried
+    (see _merge_search_ledger above) and surfaces it as a plain
+    do-not-repeat list the model can actually see on the next turn --
+    same extra_instructions injection point _project_instructions
+    already uses, not a new history-rebuilding mechanism."""
+    for m in reversed(conv.get("messages", [])):
+        if m.get("role") == "assistant" and m.get("search_ledger"):
+            entries = m["search_ledger"]
+            if not entries:
+                return None
+            lines = "; ".join(f'area={a} pattern="{p}"' for a, p in entries)
+            return (f"Already searched this conversation via meg_files_search (do NOT repeat "
+                    f"these exact area/pattern pairs -- try new keywords, the other area, or "
+                    f"report the sweep complete if nothing new is left to try): {lines}")
+    return None
 
 
 # Real client-side file upload (2026-08-17, Devin: "can we swap this to
@@ -2491,7 +2539,7 @@ def _ollama_call(model: str, messages: list, ns: str | None = None) -> dict:
 def _ollama_call_final(model: str, messages: list) -> dict:
     """Real fallback for MAX_TOOL_ROUNDS being hit, added 2026-10-08 (bug
     found live, real pilot user -- Emma -- asked a broad factual question
-    ("where are all the locations for Org"), the model
+    ("where are all the locations for Martin Energy Group"), the model
     kept refining web_search queries round after round chasing an exact
     address for every location instead of answering with what it already
     had, hit the cap, and the OLD behavior returned the bare literal
@@ -2818,7 +2866,8 @@ def _quote_sage_error_for_injection(raw_error: str, max_len: int = 500) -> str:
     )
 
 
-def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instructions: str | None = None) -> tuple:
+def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instructions: str | None = None,
+                      conv_id: str | None = None, library_project_id: str | None = None) -> tuple:
     """Real multi-round tool-calling loop -- Phase 1 of the tool-access
     build (2026-07-31, Fable+Gilfoyle council, core/decision-ledger.csv).
     Sends the conversation with tools.TOOL_SCHEMAS attached; if Ollama's
@@ -3009,6 +3058,40 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                         )})
                         continue
 
+                    # Real incident, 2026-11-19 (ddwight, live, 'image gen'
+                    # conversation): the model wrote a /library/ download
+                    # link in its own reply that no real tool call this
+                    # turn ever returned -- clicking it hit the real
+                    # /library/ route's own 400. Deterministic check
+                    # (tools.fabricated_image_links' own docstring), safe
+                    # as a real retry gate, not just a log -- unlike the
+                    # vocabulary-regex shadow signal below, there is no
+                    # real-content case this could false-positive on.
+                    if not _id_mismatch:
+                        _fake_links = tools.fabricated_image_links(final_content, ns)
+                        if _fake_links and _round < MAX_TOOL_ROUNDS - 1:
+                            messages.append(message)
+                            messages.append({"role": "system", "content": (
+                                "Your last answer included a /library/ download link "
+                                "that does not actually exist: " + ", ".join(_fake_links) +
+                                ". Never write out a /library/ URL yourself -- only "
+                                "ever copy one verbatim from a real tool result (e.g. "
+                                "generate_image, edit_image, or a document/presentation/"
+                                "spreadsheet creator). If you have not actually called "
+                                "the real tool for this request yet, call it now instead "
+                                "of describing or guessing at a result."
+                            )})
+                            continue
+                        if _fake_links:
+                            # Retry budget exhausted -- per gilfoyle's
+                            # review, this must not ship silently. Real
+                            # dead links (a since-deleted item) also hit
+                            # this path, not just genuine fabrication --
+                            # noted in the log line itself, not treated
+                            # as proven malicious.
+                            tools._log_image_gen(model, ns, "fake_link_budget_exhausted",
+                                                  ", ".join(_fake_links))
+
             if unresolved_error:
                 # Out of retry budget, still unresolved -- the HARNESS
                 # states the failure verbatim, never the model's own
@@ -3034,6 +3117,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 # gate above didn't catch or ran out of budget on, plus
                 # the broader verified-access-claim check.
                 final_content = tools.verify_all_claims(final_content, tool_calls_made)
+                tools.log_image_claim_without_call(final_content, tool_calls_made, model, ns)
 
             think_text = message.get("thinking") or None
             # Non-streaming sibling of the two streaming guards (2026-11-04,
@@ -3073,7 +3157,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
             fn = call.get("function", {})
             name = fn.get("name", "")
             args = fn.get("arguments", {})
-            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made, history_messages=messages)
+            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made, history_messages=messages, conv_id=conv_id, library_project_id=library_project_id)
             stuck = _is_stuck_identical_retry(tool_calls_made, name, args, output)
             _renumber_search(name, output, tool_calls_made)
             tool_calls_made.append({"name": name, "args": args, "output": _strip_tool_output_for_wire(output, name)})
@@ -3126,6 +3210,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
         cap_content = (_raw_cap_content if _raw_cap_content.strip()
                        else "(stopped after repeated tool calls -- try rephrasing)")
         cap_content = tools.verify_all_claims(cap_content, tool_calls_made)
+        tools.log_image_claim_without_call(cap_content, tool_calls_made, model, ns)
     # Same non-streaming guard as above -- this IS the last-resort call,
     # no round budget left to retry into, so trim-only (no continue).
     _cap_think = final_message.get("thinking") or None
@@ -3396,7 +3481,8 @@ def _ollama_call_final_stream(model: str, messages: list, think: bool = True):
             yield json.loads(line)
 
 
-def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_instructions: str | None = None):
+def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_instructions: str | None = None,
+                             conv_id: str | None = None, library_project_id: str | None = None):
     """Streaming sibling of _chat_with_tools -- same real multi-round
     tool-calling loop, but yields live progress events as they happen
     instead of blocking until the final answer:
@@ -3660,11 +3746,44 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                     )})
                     continue
 
+                # Streaming sibling of the non-streaming fabricated-link
+                # gate (2026-11-19) -- same real incident (ddwight's
+                # 'image gen' conversation): the model wrote a /library/
+                # URL in its own reply that no real tool call this turn
+                # returned. Deterministic check, safe as a real retry
+                # gate (tools.fabricated_image_links' own docstring).
+                if not _id_mismatch:
+                    _fake_links = tools.fabricated_image_links(round_content, ns)
+                    if _fake_links and _round < MAX_TOOL_ROUNDS - 1:
+                        messages.append({"role": "assistant", "content": round_content})
+                        retraction = (
+                            "\n\n\u26a0\ufe0f Retracting that -- that download link doesn't "
+                            "actually exist, checking..."
+                        )
+                        yield {"type": "content_delta", "text": retraction}
+                        messages.append({"role": "system", "content": (
+                            "Your last answer included a /library/ download link "
+                            "that does not actually exist: " + ", ".join(_fake_links) +
+                            ". Never write out a /library/ URL yourself -- only "
+                            "ever copy one verbatim from a real tool result (e.g. "
+                            "generate_image, edit_image, or a document/presentation/"
+                            "spreadsheet creator). If you have not actually called "
+                            "the real tool for this request yet, call it now instead "
+                            "of describing or guessing at a result."
+                        )})
+                        continue
+                    if _fake_links:
+                        # Retry budget exhausted -- streaming sibling of
+                        # the non-streaming log-on-exhaustion above.
+                        tools._log_image_gen(model, ns, "fake_link_budget_exhausted",
+                                              ", ".join(_fake_links))
+
             # Mechanical verification (2026-10-20, hardened 2026-10-27):
             # last-resort footnote for anything the identifier-retry
             # gate above didn't catch or ran out of budget on, plus the
             # broader verified-access-claim check.
             verified_content = tools.verify_all_claims(round_content, tool_calls_made)
+            tools.log_image_claim_without_call(verified_content, tool_calls_made, model, ns)
             if verified_content != round_content:
                 warning_suffix = verified_content[len(round_content):]
                 yield {"type": "content_delta", "text": warning_suffix}
@@ -3681,7 +3800,15 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             fn = call.get("function", {})
             name = fn.get("name", "")
             args = fn.get("arguments", {})
-            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made, history_messages=messages)
+            # Real gap, 2026-11-19 (Devin, live): no signal existed
+            # between a tool call being dispatched and finishing -- the
+            # existing "tool_call" event below only fires AFTER
+            # tools.run_tool returns, so a long call (generate_image,
+            # a real 45-75s wait) had nothing update client-side for
+            # its entire duration. This fires right before the actual
+            # blocking call, not after.
+            yield {"type": "tool_call_start", "name": name}
+            output = tools.run_tool(name, args, model=model, ns=ns, tool_calls_made=tool_calls_made, history_messages=messages, conv_id=conv_id, library_project_id=library_project_id)
             stuck = _is_stuck_identical_retry(tool_calls_made, name, args, output)
             _renumber_search(name, output, tool_calls_made)
             wire_output = _strip_tool_output_for_wire(output, name)
@@ -3794,6 +3921,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
         yield {"type": "content_delta", "text": "\n\n" + verified_cap_content}
     else:
         verified_cap_content = tools.verify_all_claims(cap_content, tool_calls_made)
+        tools.log_image_claim_without_call(verified_cap_content, tool_calls_made, model, ns)
         if verified_cap_content != cap_content:
             yield {"type": "content_delta", "text": verified_cap_content[len(cap_content):]}
     yield {"type": "final",
@@ -4116,6 +4244,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, {"conversations": _list_convs(self.ns)})
         elif self.path == "/api/projects":
             self._json(200, {"projects": _list_projects(self.ns)})
+        elif self.path == "/api/library" or self.path.startswith("/api/library?"):
+            # Real listing endpoint (council round 2026-11-19,
+            # cyber-warden) -- a materially bigger exposure shape than
+            # the existing single-file /library/ route (one response
+            # hands over the whole inventory, not one unguessable
+            # token), so: paginated (no full dump in one response) and
+            # audit-logged (unusual high-volume listing is a real
+            # signal worth being able to see later), same ns-only
+            # scope as every other /api/ route here.
+            qs = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(qs)
+            try:
+                offset = max(0, int((params.get("offset") or ["0"])[0]))
+                limit = max(1, min(100, int((params.get("limit") or ["50"])[0])))
+            except ValueError:
+                offset, limit = 0, 50
+            all_items = tools.list_library(self.ns)
+            page = all_items[offset:offset + limit]
+            tools._log_image_gen(self.server.model_name, self.ns, "library_list",
+                                  f"offset={offset} limit={limit} returned={len(page)} total={len(all_items)}")
+            self._json(200, {"items": page, "total": len(all_items), "offset": offset, "limit": limit})
         elif self.path.startswith("/api/projects/") and "/files" in self.path:
             # Real project-files browser (2026-08-17, UI polish pass round 2,
             # Devin: "give a project files [panel]") -- direct UI reads,
@@ -4819,6 +4968,104 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, resp_body)
             return
 
+        if self.path == "/api/library/upload":
+            # Library upload (2026-11-19) -- real gap vs. the reference
+            # UI (Grok's own "Upload files" button): the existing upload
+            # mechanism is project-scoped only, no way to add a file
+            # directly to the personal library. Reuses the exact same
+            # client payload shape as /api/projects/<id>/upload (files:
+            # [{path, content_b64}]) and the exact same real write choke
+            # point (_write_library) every other library producer uses
+            # -- sidecar metadata, the real listing endpoint, and delete
+            # all work unchanged, no new read path needed.
+            #
+            # Hardened 2026-11-19 (cyber-warden, council round, 2 passes
+            # -- 2nd pass reviewed the 1st fix's actual diff): this is
+            # the lowest-friction write path into the library (no
+            # project scope, no tool-call gating), so it gets its own
+            # abuse-resistance: (1) a real file-type check -- images go
+            # through the existing validate_image_bytes (real magic-byte
+            # + header check, already proven elsewhere, not just a
+            # trusted extension); office/pdf formats get a cheap magic-
+            # byte check (ZIP signature / %PDF) since there's no
+            # existing deep validator for those -- cyber-warden's 2nd-
+            # pass note stands: this stops a trivially renamed garbage
+            # file, NOT a zip-bomb or a macro payload inside a real
+            # docx/xlsx/pptx container, which stays a known, undefeated
+            # gap, not silently claimed closed; (2) a real per-ns (not
+            # global, not just per-request) disk quota via
+            # tools._library_disk_quota_ok, same convention as
+            # _office_disk_quota_ok -- known accepted gap, same review:
+            # a TOCTOU race across two truly simultaneous requests from
+            # the same ns can still both pass before either writes;
+            # low-likelihood (single account, not a shared resource) and
+            # not fixed this round, not silently claimed airtight either;
+            # (3) the request's cumulative total is now checked against
+            # each entry's base64 length BEFORE decoding, not after --
+            # a batch already over budget stops paying decode cost
+            # partway through instead of decoding every entry first.
+            length = int(self.headers.get("Content-Length", 0))
+            if length > MAX_UPLOAD_TOTAL_BYTES * 2:
+                self._json(413, {"error": f"upload too large -- {MAX_UPLOAD_TOTAL_BYTES:,}B real-content cap"})
+                return
+            try:
+                payload = json.loads(self.rfile.read(length))
+                files = payload["files"]
+                if not isinstance(files, list):
+                    raise TypeError
+            except (json.JSONDecodeError, KeyError, TypeError):
+                self._json(400, {"error": 'expected {"files": [{"path": "...", "content_b64": "..."}]}'})
+                return
+            written, skipped, total = 0, 0, 0
+            for entry in files:
+                try:
+                    rel = str(entry["path"])
+                    b64 = str(entry["content_b64"])
+                except (KeyError, TypeError):
+                    skipped += 1
+                    continue
+                ext = Path(rel).suffix.lower()
+                if ext not in tools._LIBRARY_MIME_BY_EXT:
+                    skipped += 1
+                    continue
+                # Base64 expands ~4/3 over the real byte count -- check
+                # the request's running total against each entry's
+                # ENCODED length before decoding anything, so a batch
+                # already over budget stops without paying decode cost
+                # on the rest.
+                est_bytes = len(b64) * 3 // 4
+                if len(b64) > MAX_UPLOAD_TOTAL_BYTES * 4 // 3 or total + est_bytes > MAX_UPLOAD_TOTAL_BYTES:
+                    skipped += 1
+                    continue
+                try:
+                    data = base64.b64decode(b64, validate=True)
+                except (ValueError, TypeError):
+                    skipped += 1
+                    continue
+                if ext in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+                    try:
+                        tools.validate_image_bytes(data)
+                    except ValueError:
+                        skipped += 1
+                        continue
+                elif ext in (".docx", ".pptx", ".xlsx"):
+                    if data[:4] != b"PK\x03\x04":
+                        skipped += 1
+                        continue
+                elif ext == ".pdf":
+                    if data[:5] != b"%PDF-":
+                        skipped += 1
+                        continue
+                if not tools._library_disk_quota_ok(self.ns, len(data)):
+                    skipped += 1
+                    continue
+                total += len(data)
+                fname = Path(rel).name
+                tools._write_library(self.ns, fname, data)
+                written += 1
+            self._json(200, {"written": written, "skipped": skipped})
+            return
+
         if self.path.startswith("/api/projects/") and self.path.endswith("/update"):
             # Real project-settings save (2026-08-17) -- partial update,
             # only touches fields actually present in the request body.
@@ -5063,10 +5310,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             messages_for_model = conv["messages"][:-1]
             model = conv.get("model") or self.server.model_name
+            extra = _project_instructions(conv, self.ns)
+            ledger_note = _search_ledger_note(conv)
+            if ledger_note:
+                extra = (extra + "\n\n" + ledger_note) if extra else ledger_note
             try:
                 with _track_active_request():
                     reply, tool_calls_made, thinking = _chat_with_tools(
-                        model, messages_for_model, ns=self.ns, extra_instructions=_project_instructions(conv, self.ns))
+                        model, messages_for_model, ns=self.ns, extra_instructions=extra,
+                        conv_id=conv["id"], library_project_id=conv.get("project_id"))
             except (urllib.error.URLError, TimeoutError) as e:
                 self._json(502, {"error": f"Ollama unreachable: {e}"})
                 return
@@ -5075,6 +5327,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 new_assistant["thinking"] = thinking
             if tool_calls_made:
                 new_assistant["tool_calls"] = tool_calls_made
+                ledger = _merge_search_ledger(conv, tool_calls_made)
+                if ledger:
+                    new_assistant["search_ledger"] = ledger
             conv["messages"][-1] = new_assistant
             conv["updated"] = time.time()
             _save_conv(conv, self.ns)
@@ -5213,9 +5468,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # anyway, same as today's status quo, not a new failure mode.
             with _ACTIVE_LOCK:
                 _ACTIVE_REQUESTS[0] += 1
+            extra = _project_instructions(conv, self.ns)
+            ledger_note = _search_ledger_note(conv)
+            if ledger_note:
+                extra = (extra + "\n\n" + ledger_note) if extra else ledger_note
             try:
                 for event in _chat_with_tools_stream(
-                        model, conv["messages"], ns=self.ns, extra_instructions=_project_instructions(conv, self.ns)):
+                        model, conv["messages"], ns=self.ns, extra_instructions=extra,
+                        conv_id=conv["id"], library_project_id=conv.get("project_id")):
                     if event["type"] == "final":
                         final = event
                         continue
@@ -5259,6 +5519,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 assistant_msg["thinking"] = final["thinking"]
             if final.get("tool_calls"):
                 assistant_msg["tool_calls"] = final["tool_calls"]
+                ledger = _merge_search_ledger(conv, final["tool_calls"])
+                if ledger:
+                    assistant_msg["search_ledger"] = ledger
             conv["messages"].append(assistant_msg)
             conv["updated"] = time.time()
             _save_conv(conv, self.ns)
@@ -5306,6 +5569,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # a project is metadata-only, never a bulk-delete trigger.
             path.unlink(missing_ok=True)
             self._json(200, {"deleted": proj_id})
+            return
+        if self.path.startswith("/api/library/"):
+            # ns-scoped by construction (delete_library_item takes
+            # self.ns, never a client-supplied namespace) -- same
+            # pattern as the /library/ GET route's req_ns check above.
+            token = self.path.removeprefix("/api/library/")
+            try:
+                deleted = tools.delete_library_item(self.ns, token)
+            except (OSError, ValueError) as e:
+                self._json(500, {"error": f"delete failed: {e}"})
+                return
+            if not deleted:
+                self._json(404, {"error": "no such library item"})
+                return
+            self._json(200, {"deleted": token})
             return
         self.send_response(404)
         self.end_headers()
