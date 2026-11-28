@@ -5704,8 +5704,16 @@ setInterval(() => {
     catch (e) { box.innerHTML = '<div class="sx-err">Could not load the changelog.</div>'; return; }
     const vbox = $('sxChangelogVersion');
     if (vbox && data.version) {
+      // Solid green pill, not just colored text -- guarantees real
+      // contrast regardless of which of the 6 themes is active, since
+      // it doesn't depend on the page's own --bg/--ink variables at
+      // all (a flat text-color fix would read fine on one theme and
+      // wash out on another). Devin flagged the old version link as
+      // barely visible; this replaces "faint note text" with a badge.
       vbox.innerHTML = 'version <a href="https://github.com/devinscodex/jabber/tree/v' + esc(data.version) +
-        '" target="_blank" rel="noopener">' + esc(data.version) + '</a>';
+        '" target="_blank" rel="noopener" style="display:inline-block;background:#16a34a;color:#fff;' +
+        'padding:2px 10px;border-radius:999px;font-weight:700;text-decoration:none;font-size:.82rem;' +
+        'letter-spacing:.02em">' + esc(data.version) + '</a>';
     }
     let entries = data.entries || [];
     if (!entries.length) { box.innerHTML = '<div class="sx-em">Nothing posted yet.</div>'; return; }

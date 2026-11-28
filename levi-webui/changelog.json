@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-11-28",
+    "title": "Create, merge, and reorganize PDFs right in chat",
+    "body": "Ask for a real PDF document and it'll build one. You can also merge multiple PDFs into one, reorder/add/remove/duplicate pages, and stamp text (dates, DRAFT/APPROVED marks, watermarks) onto an existing PDF -- all real files with a download link, not a workaround."
+  },
+  {
+    "date": "2026-11-28",
+    "title": "Easier to read version number",
+    "body": "The version link at the bottom of the changelog is now a clear green badge instead of faint gray text."
+  },
+  {
     "date": "2026-11-23",
     "title": "Projects got their own page",
     "body": "Clicking a project now opens a real page for it instead of a settings popup -- recent chats, instructions, and files for that project all live there, with a composer to start a new chat right from it."

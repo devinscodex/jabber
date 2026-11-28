@@ -1057,7 +1057,98 @@ def sage_search_columns(model: str, ns: str | None = None, database: str = "", p
     return {"result": result}
 
 
-# Real incident 2026-10-27: traced every djmartin Sage failure in the
+# Golden queries, 2026-11-27 -- see sage_mcp_server.py's own comment above
+# these same three functions for the full incident trace. Thin wrappers
+# here, same shape/logging as every other sage_* wrapper in this file.
+def sage_ar_balance_by_state(model: str, ns: str | None = None, database: str = "", state: str | None = None) -> dict:
+    result = _sage_mod.sage_ar_balance_by_state(database, state)
+    _log_sage_query(model, ns, "sage_ar_balance_by_state", f"{database} state={state or ''}", result)
+    return {"result": result}
+
+
+def sage_find_job(model: str, ns: str | None = None, database: str = "", keyword: str = "") -> dict:
+    result = _sage_mod.sage_find_job(database, keyword)
+    _log_sage_query(model, ns, "sage_find_job", f"{database} keyword={keyword}", result)
+    return {"result": result}
+
+
+def sage_parts_shipped_value(model: str, ns: str | None = None, database: str = "", state: str | None = None,
+                              start_date: str | None = None, end_date: str | None = None) -> dict:
+    result = _sage_mod.sage_parts_shipped_value(database, state, start_date, end_date)
+    _log_sage_query(model, ns, "sage_parts_shipped_value",
+                     f"{database} state={state or ''} {start_date or ''}..{end_date or ''}", result)
+    return {"result": result}
+
+
+# Retrieval-reuse, 2026-11-27 (SME council build 2 -- reuse past
+# successful Sage queries as few-shot grounding instead of writing SQL
+# from scratch every time). Plain word-overlap over sage_query_log.csv's
+# already-logged outcomes -- stdlib only, no embeddings/new dependency,
+# no new service. Only ever reads a log that's already written for every
+# real call; never queries Sage itself.
+_SAGE_RETRIEVAL_TOOLS = {"sage_run_query", "sage_ar_balance_by_state", "sage_find_job", "sage_parts_shipped_value"}
+_SAGE_STOPWORDS = {
+    "the", "a", "an", "is", "are", "was", "were", "what", "which", "who", "how", "for", "of", "in", "on",
+    "to", "and", "or", "do", "does", "did", "find", "get", "show", "me", "i", "need", "please", "our",
+    "we", "that", "this", "value", "total", "from", "with", "by", "us", "can", "you",
+}
+
+
+def _sage_tokenize(text: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower())
+            if w not in _SAGE_STOPWORDS and len(w) > 2}
+
+
+def _similar_past_sage_queries(database: str, question: str, limit: int = 3) -> list:
+    """Jaccard word-overlap over past OK sage_*query calls for the same
+    database. Returns [(score, tool, detail, log_date), ...] highest
+    score first; [] if the log is missing or nothing overlaps at all."""
+    if not SAGE_QUERY_LOG.exists():
+        return []
+    q_tokens = _sage_tokenize(question)
+    if not q_tokens:
+        return []
+    scored = []
+    with open(SAGE_QUERY_LOG, newline="") as f:
+        for raw in csv.reader(f):
+            if not raw:
+                continue
+            row = list(raw) + [""] * (7 - len(raw))
+            _log_date, _model, _ns, tool, detail, outcome, _err = row[:7]
+            if outcome != "ok" or tool not in _SAGE_RETRIEVAL_TOOLS:
+                continue
+            if database and database.strip() and database.strip().upper() not in detail.upper():
+                continue
+            d_tokens = _sage_tokenize(detail)
+            overlap = q_tokens & d_tokens
+            if not overlap:
+                continue
+            score = len(overlap) / len(q_tokens | d_tokens)
+            scored.append((score, tool, detail, _log_date))
+    scored.sort(key=lambda t: -t[0])
+    return scored[:limit]
+
+
+def sage_similar_past_queries(model: str, ns: str | None = None, database: str = "", question: str = "") -> dict:
+    """Call this FIRST for any new Sage question, before sage_run_query --
+    if a similar past question already has a known-working query/tool
+    call, adapt that instead of guessing fresh SQL against a schema you
+    have not fully explored yet."""
+    matches = _similar_past_sage_queries(database, question)
+    if not matches:
+        result = ("No similar past successful Sage query found for this question. "
+                   "Proceed with sage_list_tables/sage_describe_table as usual.")
+    else:
+        lines = [f"{len(matches)} similar past SUCCESSFUL Sage call(s) found "
+                 f"(adapt these instead of guessing fresh SQL):"]
+        for score, tool, detail, log_date in matches:
+            lines.append(f"- [{log_date}, similarity {score:.2f}] {tool}: {detail}")
+        result = "\n".join(lines)
+    _log_sage_query(model, ns, "sage_similar_past_queries", f"{database} {question}", result)
+    return {"result": result}
+
+
+# Real incident 2026-10-27: traced every evan Sage failure in the
 # query log and found the actual pattern -- it is almost never "described
 # a table, then guessed a wrong column on it." It is "queried a table that
 # was NEVER described (or even listed) this turn at all" -- either a real
@@ -1171,6 +1262,40 @@ SAGE_TOOL_SCHEMAS = [
             "max_rows": {"type": "integer", "description": "Row cap, 1-500 (default 100)."}},
             "required": ["database", "sql"]},
     }},
+    {"type": "function", "function": {
+        "name": "sage_ar_balance_by_state",
+        "description": "Hand-verified query: AR balance per customer (optionally filtered to one state) straight from AR_Customer.CurrentBalance. PREFER THIS over sage_run_query for any 'AR/receivables balance by state' question -- no manual join needed, and it avoids the real recurring join-column typo seen when this was hand-written.",
+        "parameters": {"type": "object", "properties": {
+            "database": {"type": "string", "description": "Database name."},
+            "state": {"type": "string", "description": "Optional 2-letter state code to filter to, e.g. MO."}},
+            "required": ["database"]},
+    }},
+    {"type": "function", "function": {
+        "name": "sage_find_job",
+        "description": "Hand-verified query: search JC_Job's real JobDesc/Comment fields for a keyword. PREFER THIS over sage_run_query for 'find a job by description/keyword' questions -- JC_Job has NO column literally named 'Description'; guessing that name is the single most repeated real failure logged against this tool.",
+        "parameters": {"type": "object", "properties": {
+            "database": {"type": "string", "description": "Database name."},
+            "keyword": {"type": "string", "description": "Keyword/phrase to search for in JobDesc or Comment."}},
+            "required": ["database", "keyword"]},
+    }},
+    {"type": "function", "function": {
+        "name": "sage_parts_shipped_value",
+        "description": "Hand-verified query: total shipped parts/line value (AR_InvoiceHistoryHeader joined to AR_InvoiceHistoryDetail on InvoiceNo+HeaderSeqNo) grouped by ship-to state, optionally filtered by state and/or date range. PREFER THIS over sage_run_query for 'parts shipped to <state> YTD'-style questions.",
+        "parameters": {"type": "object", "properties": {
+            "database": {"type": "string", "description": "Database name."},
+            "state": {"type": "string", "description": "Optional 2-letter ship-to state code."},
+            "start_date": {"type": "string", "description": "Optional start date, YYYY-MM-DD."},
+            "end_date": {"type": "string", "description": "Optional end date, YYYY-MM-DD."}},
+            "required": ["database"]},
+    }},
+    {"type": "function", "function": {
+        "name": "sage_similar_past_queries",
+        "description": "CALL THIS FIRST for any new Sage question, before sage_run_query or sage_list_tables. Looks up past SUCCESSFUL Sage queries (this tool's own call log) similar to the question asked. If a close match exists, adapt its known-working query/tool call instead of writing new SQL from scratch.",
+        "parameters": {"type": "object", "properties": {
+            "database": {"type": "string", "description": "Database name."},
+            "question": {"type": "string", "description": "The user's question, in their own words."}},
+            "required": ["database", "question"]},
+    }},
 ]
 
 SAGE_DISPATCH = {
@@ -1179,6 +1304,10 @@ SAGE_DISPATCH = {
     "sage_describe_table": sage_describe_table,
     "sage_search_columns": sage_search_columns,
     "sage_run_query": sage_run_query,
+    "sage_ar_balance_by_state": sage_ar_balance_by_state,
+    "sage_find_job": sage_find_job,
+    "sage_parts_shipped_value": sage_parts_shipped_value,
+    "sage_similar_past_queries": sage_similar_past_queries,
 }
 _SAGE_TOOL_NAMES = set(SAGE_DISPATCH.keys())
 
@@ -1808,12 +1937,270 @@ OFFICE_TOOL_SCHEMAS = [
     }},
 ]
 
+# ---------- PDF create/merge/reorganize/stamp tools, 2026-11-28 -------
+# Scoping note (deliberate, told to Devin plainly, not silently
+# narrowed): "editing" an EXISTING PDF's actual text content in place
+# is not implemented. The only local-only option for that is a crude
+# redact-and-restamp heuristic with real font/layout failure modes; the
+# only robust option (nano-pdf) calls an external LLM API, which
+# conflicts directly with Jabber's local-only data-governance promise
+# (the same reasoning that already ruled out routing any Jabber answer
+# through a hosted call). So "editing" here means stamping text/
+# watermarks onto an existing PDF (dates, DRAFT/APPROVED marks,
+# signature-line labels) -- deterministic, local-only, fully covered by
+# the unit tests below. Page-level editing (reorder/add/remove/
+# duplicate/rotate) is the OTHER real sense of "editing a PDF" and IS
+# fully implemented via edit_pdf_pages.
+#
+# Reuses the create_document/create_spreadsheet caps+library pattern
+# and edit_image's project-folder-or-pasted-file input pattern. Output
+# always goes through _write_library, same as every other generator --
+# per read_project_file's own standing discipline, project-folder tools
+# are read-only, no write-back into a linked folder.
+MAX_PROJECT_PDF_BYTES = 50_000_000  # same bound as MAX_PROJECT_IMAGE_BYTES
+_PDF_CAPS = {
+    "max_merge_files": 20,
+    "max_page_order_entries": 500,
+    "max_stamp_text": 200,
+}
+
+
+def _read_project_pdf(project_id: str, ns: str, path: str) -> bytes:
+    """Shared project-folder PDF read for merge_pdfs/edit_pdf_pages/
+    stamp_pdf -- same traversal/size/type checks as edit_image's
+    project_id+path branch, raises PdfToolError (never a bare dict) so
+    callers can uniformly wrap it."""
+    from pdf_tools_core import PdfToolError
+    try:
+        base = _linked_folder(project_id, ns)
+    except ValueError as e:
+        raise PdfToolError(str(e)) from e
+    target = _resolve_within(base, path)
+    if target is None:
+        raise PdfToolError(f"path {path!r} resolves outside the linked folder, refused")
+    if not target.is_file():
+        raise PdfToolError(f"{path!r} is not a file")
+    raw = target.read_bytes()
+    if len(raw) > MAX_PROJECT_PDF_BYTES:
+        raise PdfToolError(f"{path!r} is {len(raw):,}B, over the {MAX_PROJECT_PDF_BYTES:,}B cap")
+    return raw
+
+
+def create_pdf(model: str, ns: str | None = None, title: str = "", sections: list | None = None,
+                conv_id: str | None = None, library_project_id: str | None = None) -> dict:
+    if not ns:
+        return {"result": "Error: create_pdf requires a real identity namespace, none provided"}
+    from pdf_tools_core import PdfToolError, build_pdf_from_sections
+    sections = sections or []
+    caps = _OFFICE_CAPS["document"]  # same content shape as create_document, same caps
+    if not sections:
+        return {"result": "Error: at least one section is required"}
+    if len(sections) > caps["max_sections"]:
+        return {"result": f"Error: {len(sections)} sections exceeds the max of {caps['max_sections']}"}
+    for s in sections:
+        if len(str(s.get("heading", ""))) > caps["max_heading"]:
+            return {"result": f"Error: a section heading exceeds {caps['max_heading']} chars"}
+        if len(str(s.get("body", ""))) > caps["max_body"]:
+            return {"result": f"Error: a section body exceeds {caps['max_body']} chars"}
+    try:
+        data = build_pdf_from_sections(title[:200] if title else "", sections)
+    except PdfToolError as e:
+        return {"result": f"Error: {e}"}
+    fname = _slugify_filename(title, "document", "pdf")
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(sections)} section(s)). Library link (personal, no expiry, only works for your own account): {url}"
+    _log_office_doc(model, ns, "create_pdf", fname, result)
+    return {"result": result}
+
+
+def merge_pdfs(model: str, ns: str | None = None, project_id: str = "", paths: list | None = None,
+                filename: str = "", conv_id: str | None = None, library_project_id: str | None = None) -> dict:
+    if not ns:
+        return {"result": "Error: merge_pdfs requires a real identity namespace, none provided"}
+    from pdf_tools_core import PdfToolError, merge_pdf_bytes
+    paths = paths or []
+    if len(paths) < 2:
+        return {"result": "Error: merge needs at least 2 paths"}
+    if len(paths) > _PDF_CAPS["max_merge_files"]:
+        return {"result": f"Error: {len(paths)} files exceeds the max of {_PDF_CAPS['max_merge_files']}"}
+    if not project_id:
+        return {"result": "Error: project_id is required (the linked folder paths are read from)"}
+    byte_list = []
+    for p in paths:
+        try:
+            byte_list.append(_read_project_pdf(project_id, ns, p))
+        except PdfToolError as e:
+            return {"result": f"Error: {p!r}: {e}"}
+    try:
+        data = merge_pdf_bytes(byte_list)
+    except PdfToolError as e:
+        return {"result": f"Error: {e}"}
+    fname = _slugify_filename(filename or "merged", "merged", "pdf")
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, merged from {len(paths)} file(s)). Library link (personal, no expiry, only works for your own account): {url}"
+    _log_office_doc(model, ns, "merge_pdfs", fname, result)
+    return {"result": result}
+
+
+def edit_pdf_pages(model: str, ns: str | None = None, project_id: str = "", path: str = "",
+                    page_order: list | None = None, filename: str = "",
+                    conv_id: str | None = None, library_project_id: str | None = None) -> dict:
+    if not ns:
+        return {"result": "Error: edit_pdf_pages requires a real identity namespace, none provided"}
+    from pdf_tools_core import PdfToolError, reorder_pdf_pages
+    page_order = page_order or []
+    if not page_order:
+        return {"result": "Error: page_order is required (list of 1-based page numbers in final order; omit a page to delete it, repeat one to duplicate it)"}
+    if len(page_order) > _PDF_CAPS["max_page_order_entries"]:
+        return {"result": f"Error: {len(page_order)} entries exceeds the max of {_PDF_CAPS['max_page_order_entries']}"}
+    if not project_id or not path:
+        return {"result": "Error: project_id and path are both required"}
+    try:
+        raw = _read_project_pdf(project_id, ns, path)
+        data = reorder_pdf_pages(raw, page_order)
+    except PdfToolError as e:
+        return {"result": f"Error: {e}"}
+    fname = _slugify_filename(filename or path.rsplit("/", 1)[-1].rsplit(".", 1)[0], "edited", "pdf")
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, {len(page_order)} page(s)). Library link (personal, no expiry, only works for your own account): {url}"
+    _log_office_doc(model, ns, "edit_pdf_pages", fname, result)
+    return {"result": result}
+
+
+def stamp_pdf(model: str, ns: str | None = None, project_id: str = "", path: str = "",
+              text: str = "", pages: list | None = None, x: float = 72, y: float = 72,
+              font_size: int = 36, rotation: int = 0, opacity: float = 0.5, color: str = "#cc0000",
+              filename: str = "", conv_id: str | None = None, library_project_id: str | None = None) -> dict:
+    if not ns:
+        return {"result": "Error: stamp_pdf requires a real identity namespace, none provided"}
+    from pdf_tools_core import PdfToolError, stamp_pdf_bytes
+    if not text:
+        return {"result": "Error: text is required"}
+    if len(text) > _PDF_CAPS["max_stamp_text"]:
+        return {"result": f"Error: text exceeds the max of {_PDF_CAPS['max_stamp_text']} chars"}
+    if not project_id or not path:
+        return {"result": "Error: project_id and path are both required"}
+    try:
+        raw = _read_project_pdf(project_id, ns, path)
+        data = stamp_pdf_bytes(raw, text, pages, x, y, font_size=font_size,
+                                rotation=rotation, opacity=opacity, color=color)
+    except PdfToolError as e:
+        return {"result": f"Error: {e}"}
+    fname = _slugify_filename(filename or path.rsplit("/", 1)[-1].rsplit(".", 1)[0], "stamped", "pdf")
+    url = _write_library(ns, fname, data, conv_id=conv_id, library_project_id=library_project_id)
+    result = f"Real file ready: {fname} ({len(data):,} bytes, stamped {'all' if not pages else len(pages)} page(s)). Library link (personal, no expiry, only works for your own account): {url}"
+    _log_office_doc(model, ns, "stamp_pdf", fname, result)
+    return {"result": result}
+
+PDF_TOOL_SCHEMAS = [
+    {"type": "function", "function": {
+        "name": "create_pdf",
+        "description": ("Create a real .pdf document (a title plus a sequence of heading+body "
+                         "sections) and give back a download link. Same shape/caps as "
+                         "create_document, output as PDF instead of .docx."),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Document title, shown at the top and used as the filename. Max 200 characters."},
+                "sections": {
+                    "type": "array",
+                    "description": "1-30 sections, in the order they should appear.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "heading": {"type": "string", "description": "Section heading text, max 150 characters."},
+                            "body": {"type": "string", "description": "Section body prose, max 3000 characters. Use a blank line between paragraphs."},
+                        },
+                        "required": ["heading", "body"],
+                    },
+                },
+            },
+            "required": ["title", "sections"],
+        },
+    }},
+    {"type": "function", "function": {
+        "name": "merge_pdfs",
+        "description": ("Merge 2-20 existing PDFs (from a linked project folder, in the given "
+                         "order) into one PDF and give back a download link."),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "The linked project the PDFs live in."},
+                "paths": {"type": "array", "description": "2-20 relative paths within the project's linked folder, in merge order.", "items": {"type": "string"}},
+                "filename": {"type": "string", "description": "Base filename without extension for the merged output. Defaults to 'merged'."},
+            },
+            "required": ["project_id", "paths"],
+        },
+    }},
+    {"type": "function", "function": {
+        "name": "edit_pdf_pages",
+        "description": ("Reorganize one existing PDF's pages: reorder, delete (by omitting a "
+                         "page number), duplicate (by repeating one), and/or rotate pages in "
+                         "90-degree steps. Gives back a download link to the edited copy; the "
+                         "original file is never modified."),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "The linked project the PDF lives in."},
+                "path": {"type": "string", "description": "Relative path to the PDF within the project's linked folder."},
+                "page_order": {
+                    "type": "array",
+                    "description": ("1-based page numbers in the FINAL desired order. Omit a page "
+                                     "to delete it, repeat one to duplicate it. e.g. [3,1,2] "
+                                     "reorders a 3-page PDF; [1,3] on a 3-page PDF drops page 2."),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "page": {"type": "integer", "description": "1-based source page number."},
+                            "rotate": {"type": "integer", "description": "Additional rotation in degrees (multiple of 90), default 0."},
+                        },
+                        "required": ["page"],
+                    },
+                },
+                "filename": {"type": "string", "description": "Base filename without extension for the output. Defaults to the source filename."},
+            },
+            "required": ["project_id", "path", "page_order"],
+        },
+    }},
+    {"type": "function", "function": {
+        "name": "stamp_pdf",
+        "description": ("Stamp text onto an existing PDF (a date, DRAFT/APPROVED mark, a "
+                         "signature-line label, a correction note) at a given position, "
+                         "optionally rotated (e.g. 45 degrees for a diagonal watermark) and "
+                         "semi-transparent. Gives back a download link to the stamped copy; "
+                         "the original file is never modified. This does NOT rewrite existing "
+                         "text in the PDF -- it only adds new text on top."),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "The linked project the PDF lives in."},
+                "path": {"type": "string", "description": "Relative path to the PDF within the project's linked folder."},
+                "text": {"type": "string", "description": "Text to stamp, max 200 characters."},
+                "pages": {"type": "array", "description": "1-based page numbers to stamp. Omit for every page.", "items": {"type": "integer"}},
+                "x": {"type": "number", "description": "X position in PDF points from the left edge (72 points = 1 inch). Default 72."},
+                "y": {"type": "number", "description": "Y position in PDF points from the BOTTOM edge. Default 72."},
+                "font_size": {"type": "integer", "description": "Font size in points. Default 36."},
+                "rotation": {"type": "integer", "description": "Rotation in degrees, any angle (e.g. 45 for a diagonal watermark). Default 0."},
+                "opacity": {"type": "number", "description": "0.0 (invisible) to 1.0 (solid). Default 0.5."},
+                "color": {"type": "string", "description": "Hex color, e.g. '#cc0000'. Default '#cc0000'."},
+                "filename": {"type": "string", "description": "Base filename without extension for the output. Defaults to the source filename."},
+            },
+            "required": ["project_id", "path", "text"],
+        },
+    }},
+]
+
 OFFICE_DISPATCH = {
     "create_spreadsheet": create_spreadsheet,
     "create_document": create_document,
     "create_presentation": create_presentation,
+    "create_pdf": create_pdf,
+    "merge_pdfs": merge_pdfs,
+    "edit_pdf_pages": edit_pdf_pages,
+    "stamp_pdf": stamp_pdf,
 }
 _OFFICE_TOOL_NAMES = set(OFFICE_DISPATCH.keys())
+OFFICE_TOOL_SCHEMAS = OFFICE_TOOL_SCHEMAS + PDF_TOOL_SCHEMAS
 
 
 # Image generation/editing (2026-11-18, Qwen-Image-2.1 -- prototyped and
@@ -2260,7 +2647,7 @@ def run_tool(name: str, args: dict, model: str, ns: str | None = None,
 # e.g. GL_Account, AP_ACHCheckEntry, MAS_MNS) and deliberately excludes
 # ordinary lowercase English words-with-underscores, which this
 # convention never produces.
-# Broadened 2026-10-27 (real incident: djmartin's session invented
+# Broadened 2026-10-27 (real incident: evan's session invented
 # table names "GLJobHdr" and "PMJob", never seen in any sage_list_tables
 # output that session -- the old underscore-only form never saw them,
 # they're structurally invisible to it). Sage 100's real convention is
@@ -2585,7 +2972,7 @@ def verify_image_links(content: str, tool_calls_made: list) -> str:
 
 
 def fabricated_image_links(content: str, ns: str) -> list:
-    """Real incident, 2026-11-19 (ddwight's own 'image gen' conversation,
+    """Real incident, 2026-11-19 (devin's own 'image gen' conversation,
     found live): the model wrote a /library/ URL in its OWN reply text
     that was never returned by any real tool call this turn --
     a fabricated markdown link, immediately followed in the SAME

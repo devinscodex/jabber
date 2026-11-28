@@ -562,7 +562,7 @@ def _admin_overview() -> dict:
     """Read-only snapshot. Namespace roster is the UNION of (a) every
     real conversation directory and (b) every namespace appearing in any
     MCP allowlist -- a user can be allowlisted before ever opening the
-    chat (real case: nmoesch/svogt on Wrike, zero conversations), and
+    chat (real case: carol/dave on Wrike, zero conversations), and
     omitting them would hide a live access grant from the admin view."""
     namespaces = set()
     conv_counts = {}
@@ -2507,7 +2507,7 @@ def _ollama_ready_messages(messages: list) -> list:
     right before each call -- the real stored conv/history_messages list
     is never mutated, only the outgoing request shape.
 
-    Real bug fixed 2026-10-19 (Leviathan sweep, lbush's conversation):
+    Real bug fixed 2026-10-19 (Leviathan sweep, grace's conversation):
     a flaky frontend paste can persist an images entry with real mime
     metadata but an EMPTY data string -- {"mime": "image/png", "data":
     ""} -- confirmed live on disk, the image-paste path from the
@@ -3004,9 +3004,13 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
         message = result.get("message", {})
         calls = message.get("tool_calls") or []
 
+        if calls:
+            _log_round_event("nonstream", model, ns, _round, "tool_call", n_calls=len(calls))
+
         if not calls:
             unresolved_error = tools.last_unresolved_sage_error(tool_calls_made)
             if unresolved_error and _round < MAX_TOOL_ROUNDS - 1:
+                _log_round_event("nonstream", model, ns, _round, "sage_retry")
                 # Harness-owned retry (2026-10-20, worse incident than
                 # the identifier-verification one above): the model
                 # stopped calling tools right after a sage_* error with
@@ -3051,6 +3055,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 print(f"[empty-round] model={model} round={_round} ns={ns} -- "
                       f"round produced no content and no tool_calls")
                 _record_empty_round()
+                _log_round_event("nonstream", model, ns, _round, "empty_first_retry")
                 empty_round_retried = True
                 messages.append({"role": "system", "content": (
                     "Your last turn produced neither an answer nor a tool "
@@ -3069,7 +3074,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 # identifier the model states but that never appeared
                 # in this turn's real sage_* tool output used to only
                 # get a footnote AFTER being shown to the user (real
-                # incident: djmartin's session invented table names
+                # incident: evan's session invented table names
                 # "GLJobHdr"/"PMJob" that were never in any
                 # sage_list_tables output). Reject the round instead --
                 # the content is discarded, never shown -- and force a
@@ -3091,6 +3096,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                         "the real name, or state plainly that you could not "
                         "confirm it."
                     )})
+                    _log_round_event("nonstream", model, ns, _round, "unverified_id_retry")
                     continue
 
                 # Real incident 2026-10-27: a standing identity fact in
@@ -3116,9 +3122,10 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                             f"product of OpenAI/Anthropic/Google/Meta/Mistral/"
                             f"DeepSeek/xAI. Do not restate the wrong claim."
                         )})
+                        _log_round_event("nonstream", model, ns, _round, "identity_mismatch_retry")
                         continue
 
-                    # Real incident, 2026-11-19 (ddwight, live, 'image gen'
+                    # Real incident, 2026-11-19 (devin, live, 'image gen'
                     # conversation): the model wrote a /library/ download
                     # link in its own reply that no real tool call this
                     # turn ever returned -- clicking it hit the real
@@ -3141,6 +3148,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                                 "the real tool for this request yet, call it now instead "
                                 "of describing or guessing at a result."
                             )})
+                            _log_round_event("nonstream", model, ns, _round, "fake_link_retry")
                             continue
                         if _fake_links:
                             # Retry budget exhausted -- per gilfoyle's
@@ -3149,6 +3157,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                             # this path, not just genuine fabrication --
                             # noted in the log line itself, not treated
                             # as proven malicious.
+                            _log_round_event("nonstream", model, ns, _round, "fake_link_budget_exhausted")
                             tools._log_image_gen(model, ns, "fake_link_budget_exhausted",
                                                   ", ".join(_fake_links))
 
@@ -3169,6 +3178,7 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 # back "" a second time. Bounded: never loops forever.
                 print(f"[empty-round] model={model} round={_round} ns={ns} -- "
                       f"still empty after retry, giving up for this turn")
+                _log_round_event("nonstream", model, ns, _round, "empty_final_giveup")
                 final_content = ("(the model produced no response for this "
                                   "reply -- please try rephrasing)")
             else:
@@ -3194,6 +3204,8 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 print(f"[content-cap] model={model} round={_round} ns={ns} -- "
                       f"non-streaming degenerate reply, retrying once "
                       f"(content_bad={content_bad} think_bad={think_bad})")
+                _log_round_event("nonstream", model, ns, _round, "degenerate_retry",
+                                  content_bad=content_bad, think_bad=think_bad)
                 degenerate_retried = True
                 messages.append({"role": "system", "content": (
                     "Your last answer degenerated into repetitive or "
@@ -3203,8 +3215,11 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
                 continue
             if content_bad:
                 final_content = _trim_runaway(final_content) + _RUNAWAY_NOTICE
+                _log_round_event("nonstream", model, ns, _round, "degenerate_final_trim")
             if think_bad:
                 think_text = None
+            if not content_bad and not think_bad:
+                _log_round_event("nonstream", model, ns, _round, "ok_final")
             return final_content, tool_calls_made, think_text
 
         # Real assistant turn (even an empty-content one that's ALL tool
@@ -3277,7 +3292,10 @@ def _chat_with_tools(model: str, history_messages: list, ns: str, extra_instruct
     if _runaway_cut(cap_content) is not None or _looks_repeating(cap_content):
         print(f"[content-cap] model={model} ns={ns} -- "
               f"non-streaming degenerate reply at the final cap-hit call, no retry budget left")
+        _log_round_event("nonstream", model, ns, MAX_TOOL_ROUNDS, "cap_hit_degenerate")
         cap_content = _trim_runaway(cap_content) + _RUNAWAY_NOTICE
+    else:
+        _log_round_event("nonstream", model, ns, MAX_TOOL_ROUNDS, "cap_hit_final")
     if _cap_think and _thinking_degenerate(_cap_think):
         _cap_think = None
     return (cap_content, tool_calls_made, _cap_think)
@@ -3586,6 +3604,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
     images_budget = [MAX_TOOL_IMAGES_PER_TURN]
     round_content, round_thinking = "", ""
     empty_round_retried = False
+    degenerate_retried = False
     think_on = True
     # Streaming sibling of the same real-fact injection above -- same
     # shape, same reasoning, see the non-streaming version's comment.
@@ -3675,15 +3694,46 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             print(f"[think-cap] model={model} round={_round} ns={ns} -- "
                   f"stopped degenerate reasoning (think_len={len(round_thinking)} "
                   f"nopunct_run={run} repeating={_looks_repeating(round_thinking)})")
+            _log_round_event("stream", model, ns, _round, "think_cap_retry",
+                              think_len=len(round_thinking))
             round_thinking = ""
             yield {"type": "thinking_reset", "text": _THINK_RESET_NOTICE}
 
         if content_capped == "pattern":
             print(f"[content-cap] model={model} round={_round} ns={ns} -- "
                   f"stopped a degenerate reply (content_len={len(gate.text)} shown={gate.sent})")
+            _log_round_event("stream", model, ns, _round, "content_cap_pattern")
             round_tool_calls = None
             round_content = gate.trip() + _RUNAWAY_NOTICE
             yield {"type": "content_delta", "text": _RUNAWAY_NOTICE}
+            # Fix (2026-11-27, R4 council instrumentation + parity-test
+            # finding): every OTHER streaming retry gate (sage error,
+            # unverified Sage identifier, identity mismatch, fake link)
+            # already retracts-and-retries once instead of leaving a
+            # broken answer as final -- this was the ONE gate that
+            # didn't, so a real degenerate hit here forced the user to
+            # manually type "try again" themselves (confirmed real,
+            # evan's image-edit session hit this exact gap three
+            # times in one sitting). Bounded to one retry, same shape
+            # as every sibling gate -- the trimmed/notice text already
+            # shown above stays on the wire (can't un-send it), this
+            # just stops it from also being the FINAL answer.
+            if not degenerate_retried and _round < MAX_TOOL_ROUNDS - 1:
+                _log_round_event("stream", model, ns, _round, "content_cap_pattern_retry")
+                degenerate_retried = True
+                messages.append({"role": "assistant", "content": round_content})
+                retraction = (
+                    "\n\n\u26a0\ufe0f Let me try that again, cleanly:\n\n"
+                )
+                yield {"type": "content_delta", "text": retraction}
+                messages.append({"role": "system", "content": (
+                    "Your last answer degenerated into repetitive or "
+                    "incoherent text -- already shown to the user as broken, "
+                    "with a notice. Answer the ORIGINAL question again now, "
+                    "cleanly and concisely, using only real information "
+                    "already confirmed in this conversation."
+                )})
+                continue
         elif content_capped == "cap":
             # 2026-11-04, council round 3 -- Devin: "full, honest answers,"
             # don't treat a merely-long clean reply like a degenerate one.
@@ -3710,6 +3760,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                 # already streamed live, so this yields a visible
                 # retraction before looping, rather than silently
                 # treating a fabricated attempt as the final answer.
+                _log_round_event("stream", model, ns, _round, "sage_retry")
                 messages.append({"role": "assistant", "content": round_content})
                 retraction = (
                     "\n\n\u26a0\ufe0f Retracting that -- the Sage query actually "
@@ -3738,6 +3789,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                       f"(think_len={len(round_thinking)} capped={think_capped} "
                       f"done_reason={chunk.get('done_reason')} history_msgs={len(messages)} think_on={think_on})")
                 _record_empty_round()
+                _log_round_event("stream", model, ns, _round, "empty_first_retry")
                 empty_round_retried = True
                 think_on = False
                 yield {"type": "thinking_delta", "text": "\n[retrying without reasoning]\n"}
@@ -3757,6 +3809,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             if unresolved_error:
                 # Out of retry budget -- the HARNESS states the failure
                 # verbatim, never the model's own free generation.
+                _log_round_event("stream", model, ns, _round, "sage_unresolved_final")
                 harness_content = (
                     "I attempted to query Sage for this and it failed:\n\n"
                     + unresolved_error +
@@ -3776,6 +3829,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                       f"still empty after retry, giving up for this turn "
                       f"(think_len={len(round_thinking)} capped={think_capped} "
                       f"done_reason={chunk.get('done_reason')} think_on={think_on})")
+                _log_round_event("stream", model, ns, _round, "empty_final_giveup")
                 fallback = ("(No answer came back for that message. Your chat is saved. "
                             "Please send your message again, or start a new chat.)")
                 yield {"type": "content_delta", "text": fallback}
@@ -3791,6 +3845,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             unverified_ids = tools.unverified_sage_identifiers(
                 round_content, tools.collect_real_sage_identifiers(tool_calls_made))
             if unverified_ids and _round < MAX_TOOL_ROUNDS - 1:
+                _log_round_event("stream", model, ns, _round, "unverified_id_retry")
                 messages.append({"role": "assistant", "content": round_content})
                 retraction = (
                     "\n\n\u26a0\ufe0f Retracting that -- " + ", ".join(unverified_ids) +
@@ -3817,6 +3872,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             if not unverified_ids:
                 _id_mismatch = tools.model_identity_mismatch(round_content, model)
                 if _id_mismatch and _round < MAX_TOOL_ROUNDS - 1:
+                    _log_round_event("stream", model, ns, _round, "identity_mismatch_retry")
                     messages.append({"role": "assistant", "content": round_content})
                     retraction = (
                         "\n\n\u26a0\ufe0f Retracting that -- " + _id_mismatch +
@@ -3833,7 +3889,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                     continue
 
                 # Streaming sibling of the non-streaming fabricated-link
-                # gate (2026-11-19) -- same real incident (ddwight's
+                # gate (2026-11-19) -- same real incident (devin's
                 # 'image gen' conversation): the model wrote a /library/
                 # URL in its own reply that no real tool call this turn
                 # returned. Deterministic check, safe as a real retry
@@ -3841,6 +3897,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                 if not _id_mismatch:
                     _fake_links = tools.fabricated_image_links(round_content, ns)
                     if _fake_links and _round < MAX_TOOL_ROUNDS - 1:
+                        _log_round_event("stream", model, ns, _round, "fake_link_retry")
                         messages.append({"role": "assistant", "content": round_content})
                         retraction = (
                             "\n\n\u26a0\ufe0f Retracting that -- that download link doesn't "
@@ -3861,6 +3918,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                     if _fake_links:
                         # Retry budget exhausted -- streaming sibling of
                         # the non-streaming log-on-exhaustion above.
+                        _log_round_event("stream", model, ns, _round, "fake_link_budget_exhausted")
                         tools._log_image_gen(model, ns, "fake_link_budget_exhausted",
                                               ", ".join(_fake_links))
 
@@ -3873,6 +3931,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
             if verified_content != round_content:
                 warning_suffix = verified_content[len(round_content):]
                 yield {"type": "content_delta", "text": warning_suffix}
+            _log_round_event("stream", model, ns, _round, "ok_final")
             yield {"type": "final", "content": verified_content,
                    "thinking": round_thinking or None, "tool_calls": tool_calls_made}
             return
@@ -3892,6 +3951,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
                 "\n\n\u26a0\ufe0f Actually, let me check that for real instead of just guessing:"
             )}
 
+        _log_round_event("stream", model, ns, _round, "tool_call", n_calls=len(round_tool_calls))
         # Real assistant turn (tool_calls, possibly with no content) has
         # to go back into the transcript before the tool results -- same
         # requirement as the non-streaming version above.
@@ -3990,6 +4050,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
         if content_capped == "pattern":
             print(f"[content-cap] model={model} wrap-up ns={ns} -- "
                   f"stopped a degenerate reply (content_len={len(gate.text)} shown={gate.sent})")
+            _log_round_event("stream", model, ns, MAX_TOOL_ROUNDS, "wrapup_content_cap_pattern")
             round_content = gate.trip() + _RUNAWAY_NOTICE
             yield {"type": "content_delta", "text": _RUNAWAY_NOTICE}
         elif content_capped == "cap":
@@ -4014,6 +4075,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
     cap_content = round_content if round_content.strip() else "(stopped after repeated tool calls -- try rephrasing)"
     unresolved_error = tools.last_unresolved_sage_error(tool_calls_made)
     if unresolved_error:
+        _log_round_event("stream", model, ns, MAX_TOOL_ROUNDS, "wrapup_sage_unresolved_final")
         verified_cap_content = (
             "I attempted to query Sage for this and it failed:\n\n"
             + unresolved_error +
@@ -4025,6 +4087,7 @@ def _chat_with_tools_stream(model: str, history_messages: list, ns: str, extra_i
         tools.log_image_claim_without_call(verified_cap_content, tool_calls_made, model, ns)
         if verified_cap_content != cap_content:
             yield {"type": "content_delta", "text": verified_cap_content[len(cap_content):]}
+        _log_round_event("stream", model, ns, MAX_TOOL_ROUNDS, "wrapup_final")
     yield {"type": "final",
            "content": verified_cap_content,
            "thinking": round_thinking or None, "tool_calls": tool_calls_made}
@@ -4072,6 +4135,29 @@ _EMPTY_ROUND_COUNT = [0]
 def _record_empty_round():
     with _EMPTY_ROUND_LOCK:
         _EMPTY_ROUND_COUNT[0] += 1
+
+
+# Round-outcome structured log (2026-11-27, council R4 instrumentation
+# finding: _EMPTY_ROUND_COUNT above is a raw count with NO denominator --
+# nobody can compute a real failure RATE from it, only "did it go up."
+# One JSONL line per round, both the streaming and non-streaming loops,
+# append-only, so a real total-rounds-vs-empty-rounds rate can finally
+# be computed instead of guessed. Intentionally minimal (one log line,
+# no new retry behavior) -- this round's job is visibility, not a fix.
+_ROUND_EVENTS_PATH = Path(__file__).parent / "round_events.jsonl"
+_ROUND_EVENTS_LOCK = threading.Lock()
+
+
+def _log_round_event(path: str, model: str, ns: str | None, round_num: int,
+                      outcome: str, **extra) -> None:
+    rec = {"ts": time.time(), "path": path, "model": model, "ns": ns,
+           "round": round_num, "outcome": outcome, **extra}
+    try:
+        with _ROUND_EVENTS_LOCK:
+            with open(_ROUND_EVENTS_PATH, "a") as f:
+                f.write(json.dumps(rec, default=str) + "\n")
+    except Exception as e:
+        print(f"[round-event-log] failed to write: {e}")
 
 
 @contextlib.contextmanager
@@ -4314,7 +4400,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # reliably carry "email" (see cf_access_auth.py's own
             # verify()), never a guaranteed human display name claim, so
             # the name is DERIVED from the email's local-part (e.g.
-            # "efeilbach" -> "Efeilbach") -- not pretty, but real and
+            # "frank" -> "Frank") -- not pretty, but real and
             # user-specific, which a hardcoded "Devin" never was for
             # anyone else. "local" (auth-disabled single-user dev mode)
             # gets a plain "You" rather than a fabricated name.
@@ -5761,7 +5847,7 @@ def main():
     # Ouroboros itself today (cairn-webui.service, same box as Ollama),
     # and a host can't reliably reach itself through its own Tailscale
     # interface (same class as the cairn.ravenscrest.xyz self-connect
-    # failure, LESSONS.md 2026-08-04: `curl 10.0.0.5:11434` from
+    # failure, LESSONS.md 2026-08-04: `curl 100.64.0.1:11434` from
     # Ouroboros itself gets an instant connection failure, `curl
     # localhost:11434` from the same shell returns 200). Testbench model
     # dropdown came back completely empty as a result. Default restored
@@ -5773,7 +5859,7 @@ def main():
     p.add_argument("--ollama-host", default="localhost:11434",
                     help="host:port of the Ollama server to talk to "
                          "(default: localhost:11434, same-box Ollama; "
-                         "pass e.g. 10.0.0.5:11434 when Beacon runs "
+                         "pass e.g. 100.64.0.1:11434 when Beacon runs "
                          "on a different box than the Hangar)")
     args = p.parse_args()
     if args.port is None:
