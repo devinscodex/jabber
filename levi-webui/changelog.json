@@ -1,13 +1,38 @@
 [
   {
     "date": "2026-11-28",
-    "title": "Create, merge, and reorganize PDFs right in chat",
-    "body": "Ask for a real PDF document and it'll build one. You can also merge multiple PDFs into one, reorder/add/remove/duplicate pages, and stamp text (dates, DRAFT/APPROVED marks, watermarks) onto an existing PDF -- all real files with a download link, not a workaround."
+    "title": "Catches and retries a degenerating reply before you see it",
+    "body": "When a reply runs on with no sentence breaks for too long, repeats the same chunk of text, or its internal reasoning degenerates the same way, Jabber now detects it and automatically retries the answer once -- covers both regular and streaming replies -- instead of shipping broken or repetitive text."
   },
   {
     "date": "2026-11-28",
-    "title": "Easier to read version number",
-    "body": "The version link at the bottom of the changelog is now a clear green badge instead of faint gray text."
+    "title": "Sage answers get checked against what was actually queried",
+    "body": "If a reply states a Sage table, column, or report name that never actually appeared in that turn's real Sage query results, Jabber catches it and retries instead of letting an unconfirmed name slip through. Same check applies to claims that DocLink, Wrike, or Sage access is \"working\" or \"verified\" when no real call to that system ran this turn."
+  },
+  {
+    "date": "2026-11-28",
+    "title": "Ask for a real PDF and it'll build one",
+    "body": "Give it a title and some sections and it writes a real .pdf document, with a download link -- not a Word doc you have to Save As yourself."
+  },
+  {
+    "date": "2026-11-28",
+    "title": "Merge PDFs together",
+    "body": "Point it at two or more PDFs already in a project and it combines them into one, in whatever order you want."
+  },
+  {
+    "date": "2026-11-28",
+    "title": "Reorder, add, duplicate, or remove PDF pages",
+    "body": "Rearrange a PDF's pages, drop ones you don't want, repeat one that needs to show up twice, or rotate a page -- all without touching the original file."
+  },
+  {
+    "date": "2026-11-28",
+    "title": "Stamp or watermark an existing PDF",
+    "body": "Add a DRAFT or APPROVED mark, a date, or a diagonal watermark to any page of a PDF you already have."
+  },
+  {
+    "date": "2026-11-28",
+    "title": "A fresh hello every time",
+    "body": "The greeting on the home screen now picks from a rotating set of lines instead of saying the exact same thing every single time."
   },
   {
     "date": "2026-11-23",

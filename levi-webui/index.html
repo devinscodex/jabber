@@ -1615,6 +1615,37 @@ let currentProjectId = null;
 // user-facing label, never a baked-in name.
 let currentUser = { display_name: null, email: null };
 
+// Varied hero greeting, 2026-11-28 (Devin: the single hardcoded "What's
+// the move, {name}?" line was the same on every load -- picks one of
+// these at random per page load instead. textContent (not innerHTML)
+// below, so {name} substitution never needs escaping.
+const HERO_GREETINGS = [
+  "What are we getting into, {name}?",
+  "What's on deck, {name}?",
+  "What do you need, {name}?",
+  "Where do we start, {name}?",
+  "What's the plan, {name}?",
+  "Ready when you are, {name}.",
+  "What's first, {name}?",
+  "Let's get into it, {name}.",
+  "What's the ask, {name}?",
+  "What's next, {name}?",
+  "What's on your mind, {name}?",
+  "Where to, {name}?",
+  "What's the job, {name}?",
+  "What are we tackling, {name}?",
+  "Hey {name}, what's up?",
+  "What's cooking, {name}?",
+  "Talk to me, {name}.",
+  "What's the word, {name}?",
+  "{name}, what do you need?",
+  "What do we knock out first, {name}?",
+];
+function randomHeroGreeting(name) {
+  const t = HERO_GREETINGS[Math.floor(Math.random() * HERO_GREETINGS.length)];
+  return t.replace('{name}', name);
+}
+
 async function loadCurrentUser() {
   try {
     const resp = await fetch('/api/me');
@@ -1622,7 +1653,7 @@ async function loadCurrentUser() {
     currentUser = data;
     const greeting = document.getElementById('heroGreeting');
     if (greeting && data.display_name) {
-      greeting.textContent = `What's the move, ${data.display_name}?`;
+      greeting.textContent = randomHeroGreeting(data.display_name);
     }
     renderSidebarUser();
   } catch (e) {
